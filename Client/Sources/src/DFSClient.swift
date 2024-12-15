@@ -8,9 +8,9 @@
 import Foundation
 
 class DFSClient {
-    let address: String
-    let mountPath: String
-    let timeout: Int
+    private let address: String
+    private let mountPath: String
+    private let timeout: Int
     
     init(address: String, mountPath: String, timeout: Int) {
         self.address = address
