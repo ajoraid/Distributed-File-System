@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+service DFSClient {
+    rpc SayHello(Hellooo) returns (Reply);
+}
+
+message Hellooo {
+
+}
+
+message Reply {
+
+}
