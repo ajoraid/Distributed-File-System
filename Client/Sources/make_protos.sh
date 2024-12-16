@@ -1,15 +1,14 @@
 #!/bin/bash
+PROTO_DIR="./proto-src"
+OUTPUT_DIR="./proto-src"
 
-# Define paths relative to the current working directory
-PROTO_DIR="./Sources/src"             # Directory containing the .proto file
-OUTPUT_DIR="./Sources/proto-src"      # Output directory for generated Swift files
+echo "Cleaning up old generated files"
+find "$OUTPUT_DIR" -type f \( -name "*.pb.swift" -o -name "*.grpc.swift" \) -delete
 
-
-# Run protoc to generate Swift and gRPC files
 protoc \
   --swift_out="$OUTPUT_DIR" \
   --grpc-swift_out="$OUTPUT_DIR" \
   -I"$PROTO_DIR" \
-  "$PROTO_DIR/dfsclient"
+  "$PROTO_DIR/dfsclient.proto"
 
 echo "Proto files generated in $OUTPUT_DIR"

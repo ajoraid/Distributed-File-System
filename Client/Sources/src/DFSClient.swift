@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import GRPC
 
 class DFSClient {
     private let address: String
@@ -16,6 +17,7 @@ class DFSClient {
         self.address = address
         self.mountPath = mountPath
         self.timeout = timeout
+        main()
     }
     
     func processCommand(for command: DFSClientCLI.Command, fileName: String) {
@@ -29,5 +31,14 @@ class DFSClient {
         case .mount:
             print("Mount here")
         }
+    }
+    
+    private func inotifyWatcher() {}
+    private func setupInotifySharedMemory() {}
+    
+    private func main() {
+        let channel = ClientConnection
+            .insecure(group: .singletonMultiThreadedEventLoopGroup)
+            .connect(host: address, port: 8080)
     }
 }
