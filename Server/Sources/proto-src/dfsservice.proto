@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+service DFSService {
+    rpc Lock(FileRequest) returns (EmptyResponse);
+    rpc Store(stream FileRequest) returns (FileContent);
+    rpc Fetch(FileRequest) returns (stream FileContent);
+    rpc Delete(FileRequest) returns (EmptyResponse);
+}
+
+message FileRequest {
+    string fileName = 1;
+    bytes fileContent = 2;
+    uint64 fileChecksum = 3;
+    uint64 mtime = 4;
+}
+
+message FileContent {
+    int64 bytesWritten = 1;
+}
+
+message EmptyResponse {}

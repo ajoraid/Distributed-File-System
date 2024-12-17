@@ -1,8 +1,9 @@
 // swift-tools-version: 6.0
+
 import PackageDescription
 
 let package = Package(
-    name: "DFSClient",
+    name: "DFSServer",
     platforms: [.macOS(.v10_15)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
@@ -10,7 +11,7 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.0.0"),
     ],
     targets: [
-        .executableTarget(name: "DFSClient", dependencies: [
+        .executableTarget(name: "DFSServer", dependencies: [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .product(name: "Figlet", package: "example-package-figlet"),
             .product(name: "GRPC", package: "grpc-swift"),

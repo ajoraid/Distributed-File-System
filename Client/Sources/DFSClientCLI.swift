@@ -43,11 +43,13 @@ struct DFSClientCLI: ParsableCommand {
     
     func run() throws {
         Figlet.say("DFS CLIENT")
-        guard let _ = Command.fromString(command) else {
+        guard let validCommand = Command.fromString(command) else {
             throw ValidationError("Invalid command. Please choose one of mount|fetch|store|delete")
         }
-        let _ = DFSClient(address: address,
-                          mountPath: mountPath,
-                          timeout: timeout)
+        let client = DFSClient(address: address,
+                               mountPath: mountPath,
+                               timeout: timeout)
+        client.run()
+        client.processCommand(for: validCommand, fileName: fileName)
     }
 }

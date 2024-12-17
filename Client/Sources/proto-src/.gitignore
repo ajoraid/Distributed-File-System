@@ -1,2 +1,2 @@
-**/dfsclient.grpc.swift
-**/dfsclient.pb.swift
+**/dfsservice.grpc.swift
+**/dfsservice.pb.swift
