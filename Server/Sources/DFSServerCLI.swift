@@ -34,5 +34,10 @@ struct DFSServerCLI: ParsableCommand {
     
     func run() throws {
         Figlet.say("DFS SERVER")
+        let server = DFSServer(address: address,
+                               mountPath: mountPath,
+                               timeout: timeout)
+        
+        try server.run()
     }
 }
