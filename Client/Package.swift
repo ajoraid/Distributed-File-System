@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "DFSClient",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
         .package(url: "https://github.com/apple/example-package-figlet", branch: "main"),
