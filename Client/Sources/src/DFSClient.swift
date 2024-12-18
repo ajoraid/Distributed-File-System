@@ -14,11 +14,13 @@ class DFSClient {
     private let mountPath: String
     private let timeout: Int
     private var client: DFSServiceNIOClient?
+    private var userID: String
     
     init(address: String, mountPath: String, timeout: Int) {
         self.address = address
         self.mountPath = mountPath
         self.timeout = timeout
+        userID = UUID().uuidString
     }
     
     func processCommand(for command: DFSClientCLI.Command, fileName: String) {
@@ -43,14 +45,14 @@ class DFSClient {
         client = DFSServiceNIOClient(channel: configuration)
     }
     
-    func lock(_ filename: String) -> GRPCStatus.Code {
+    private func lock(_ filename: String) -> GRPCStatus.Code {
         guard let client else {
             print("LOG: Tried calling lock but client is nil")
             return GRPCStatus.Code.cancelled
         }
         var request = FileRequest()
         request.fileName = filename
-        request.userid = "123456"
+        request.userid = userID
         let status = client.lock(request)
         do {
             let res = try status.response.wait()
