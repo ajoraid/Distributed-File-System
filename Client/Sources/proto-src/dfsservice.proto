@@ -12,6 +12,7 @@ message FileRequest {
     bytes fileContent = 2;
     uint64 fileChecksum = 3;
     uint64 mtime = 4;
+    string userid = 5;
 }
 
 message FileContent {

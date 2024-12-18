@@ -43,36 +43,77 @@ class DFSClient {
         client = DFSServiceNIOClient(channel: configuration)
     }
     
+    func lock(_ filename: String) -> GRPCStatus.Code {
+        guard let client else {
+            print("LOG: Tried calling lock but client is nil")
+            return GRPCStatus.Code.cancelled
+        }
+        var request = FileRequest()
+        request.fileName = filename
+        request.userid = "123456"
+        let status = client.lock(request)
+        do {
+            let res = try status.response.wait()
+            print("Response received")
+            return GRPCStatus.Code.ok
+        } catch let grpcError as GRPCStatus {
+            print("Error while waiting for response: \(grpcError)")
+            return grpcError.code
+        } catch {
+            print("Unexpected error: \(error)")
+            return GRPCStatus.Code.unknown
+        }
+    }
+    
     private func store(_ filename: String) {
         guard let client else {
             print("LOG: Tried calling store but client is nil")
             return
         }
+
+        if lock(filename) == .alreadyExists {
+            print("File already exists on server: \(filename). Skipping upload.")
+            return
+        }
+
         var request = FileRequest()
         request.fileName = filename
         let chunkSize = 1024
         let fileURL = URL(fileURLWithPath: "./\(mountPath)/\(filename)")
+
         do {
             let call = client.store()
             let fileHandle = try FileHandle(forReadingFrom: fileURL)
+
             while let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty {
                 request.fileContent = chunk
-                let send = call.sendMessage(request)
-                print(chunk)
-                try send.wait()
+                try call.sendMessage(request).wait()
+                print("Sent chunk: \(chunk)")
             }
-            _ = call.sendEnd()
+
+            try call.sendEnd().wait()
+
             call.response.whenComplete { result in
                 switch result {
-                case .success(let success):
-                    print("Recieved response: \(success)")
-                case .failure(let failure):
-                    print("Failure: \(failure)")
+                case .success(let response):
+                    print("Successfully stored file on server: \(response)")
+                case .failure(let error):
+                    if let grpcError = error as? GRPCStatus, grpcError.code == .alreadyExists {
+                        print("Server rejected storage: File already exists.")
+                    } else {
+                        print("Failure: \(error)")
+                    }
                 }
             }
+
             try fileHandle.close()
+
         } catch {
-            print("Error opening or reading from file: \(filename)")
+            if let grpcError = error as? GRPCStatus, grpcError.code == .alreadyExists {
+                print("Server rejected storage: File already exists.")
+            } else {
+                print("Error during file operation: \(error)")
+            }
         }
     }
     
