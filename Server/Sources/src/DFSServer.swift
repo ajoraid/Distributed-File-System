@@ -25,7 +25,7 @@ class DFSServer {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         defer { try? group.syncShutdownGracefully() }
         
-        let service = DFSServiceNode(eventLoopGroup: group, mountPath: mountPath)
+        let service = DFSServiceNode(eventLoopGroup: group, mountPath: mountPath, deadline: Int64(timeout))
         let server = try Server.insecure(group: group)
             .withServiceProviders([service])
             .bind(host: address, port: 27000)
@@ -37,6 +37,3 @@ class DFSServer {
         try server.onClose.wait()
     }
 }
-
-
-
