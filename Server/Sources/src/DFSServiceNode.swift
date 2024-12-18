@@ -33,8 +33,8 @@ class DFSServiceNode: DFSServiceProvider {
                                                         request.userid,
                                                         deadline)
             if !res {
-                print("file already exists")
-                promise.fail(GRPCStatus(code: .alreadyExists, message: "File already exists"))
+                print("file already locked")
+                promise.fail(GRPCStatus(code: .resourceExhausted, message: "File already locked"))
             }
             promise.succeed(EmptyResponse())
         }
