@@ -26,7 +26,7 @@ class DFSClient {
     func processCommand(for command: DFSClientCLI.Command, fileName: String) {
         switch command {
         case .fetch:
-            return
+            fetch(fileName)
         case .store:
             store(fileName)
         case .delete:
@@ -55,7 +55,7 @@ class DFSClient {
         request.userid = userID
         let status = client.lock(request)
         do {
-            let res = try status.response.wait()
+            let _ = try status.response.wait()
             print("Response received")
             return GRPCStatus.Code.ok
         } catch let grpcError as GRPCStatus {
@@ -73,8 +73,8 @@ class DFSClient {
             return
         }
 
-        if lock(filename) == .alreadyExists {
-            print("File already exists on server: \(filename). Skipping upload.")
+        if lock(filename) == .resourceExhausted {
+            print("File already locked on server: \(filename). Skipping upload.")
             return
         }
 
@@ -90,7 +90,6 @@ class DFSClient {
             while let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty {
                 request.fileContent = chunk
                 try call.sendMessage(request).wait()
-                print("Sent chunk: \(chunk)")
             }
 
             try call.sendEnd().wait()
@@ -119,9 +118,15 @@ class DFSClient {
         }
     }
     
+    private func fetch(_ filename: String) {}
+    
     private func delete(_ filename: String) {
         guard let client = client else {
             print("LOG: Tried calling store but client is nil")
+            return
+        }
+        if lock(filename) == .resourceExhausted {
+            print("File already locked on server: \(filename). Skipping upload.")
             return
         }
         var data = FileRequest()
