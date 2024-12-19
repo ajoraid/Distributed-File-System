@@ -117,8 +117,32 @@ class DFSClient {
             }
         }
     }
-    
-    private func fetch(_ filename: String) {}
+
+    private func fetch(_ filename: String) {
+        guard let client = client else {
+            print("LOG: Tried calling fetch but client is nil")
+            return
+        }
+        let call = client.fetch(FileRequest.with { $0.fileName = filename }) { response in
+            print("Received chunk: \(response.fileContent) bytes")
+            let path = "./\(self.mountPath)/\(filename)"
+            let fileURL = URL(fileURLWithPath: path)
+            
+            if !FileManager.default.fileExists(atPath: path) {
+                FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
+            }
+            
+            do {
+                let fileHandle = try FileHandle(forWritingTo: fileURL)
+                defer { try? fileHandle.close() }
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(response.fileContent)
+            } catch {
+                print("Error writing to file: \(error.localizedDescription)")
+            }
+        }
+        do { _ = try call.status.wait() } catch { print(error) }
+    }
     
     private func delete(_ filename: String) {
         guard let client = client else {

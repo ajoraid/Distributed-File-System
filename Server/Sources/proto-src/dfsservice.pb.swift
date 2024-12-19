@@ -41,12 +41,14 @@ struct FileRequest: @unchecked Sendable {
   init() {}
 }
 
-struct FileContent: Sendable {
+struct FileContent: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   var bytesWritten: Int64 = 0
+
+  var fileContent: Data = Data()
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -125,6 +127,7 @@ extension FileContent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
   static let protoMessageName: String = "FileContent"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "bytesWritten"),
+    2: .same(proto: "fileContent"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -134,6 +137,7 @@ extension FileContent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularInt64Field(value: &self.bytesWritten) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self.fileContent) }()
       default: break
       }
     }
@@ -143,11 +147,15 @@ extension FileContent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if self.bytesWritten != 0 {
       try visitor.visitSingularInt64Field(value: self.bytesWritten, fieldNumber: 1)
     }
+    if !self.fileContent.isEmpty {
+      try visitor.visitSingularBytesField(value: self.fileContent, fieldNumber: 2)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: FileContent, rhs: FileContent) -> Bool {
     if lhs.bytesWritten != rhs.bytesWritten {return false}
+    if lhs.fileContent != rhs.fileContent {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -17,6 +17,7 @@ message FileRequest {
 
 message FileContent {
     int64 bytesWritten = 1;
+    bytes fileContent = 2;
 }
 
 message EmptyResponse {}

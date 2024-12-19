@@ -9,6 +9,7 @@ import Foundation
 import GRPC
 import NIOCore
 import NIOPosix
+import CryptoSwift
 
 class DFSServiceNode: DFSServiceProvider {
     let eventLoopGroup: EventLoopGroup
@@ -91,7 +92,27 @@ class DFSServiceNode: DFSServiceProvider {
     
     func fetch(request: FileRequest,
                context: GRPC.StreamingResponseCallContext<FileContent>) -> NIOCore.EventLoopFuture<GRPC.GRPCStatus> {
-        return GRPCStatus.ok as! EventLoopFuture<GRPCStatus>
+        let promise = context.eventLoop.makePromise(of: GRPCStatus.self)
+        let path = "./\(self.mountPath)/\(request.fileName)"
+        if !FileManager.default.fileExists(atPath: path) {
+            promise.fail(GRPCStatus(code: .notFound, message: "File was not found on server"))
+        }
+        var content = FileContent()
+        let chunkSize = 1024
+        let fileURL = URL(fileURLWithPath: path)
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: fileURL)
+            while let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty {
+                content.fileContent = chunk
+                let _ = context.sendResponse(content)
+                
+            }
+            try fileHandle.close()
+            promise.succeed(.ok)
+        } catch {
+            promise.fail(GRPCStatus(code: .internalError, message: "Failed to read file: \(error.localizedDescription)"))
+        }
+        return promise.futureResult
     }
     
     func delete(request: FileRequest,
