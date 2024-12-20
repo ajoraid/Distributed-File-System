@@ -122,4 +122,22 @@ class DFSServiceNode: DFSServiceProvider {
         return context.eventLoop.makeSucceededFuture(response)
         
     }
+    
+    private func getFileCheckSum(_ filename: String) {
+        let path = "./\(mountPath)/\(filename)"
+        let fileURL = URL(fileURLWithPath: path)
+        
+        if !FileManager.default.fileExists(atPath: path) {
+            print("File does not exist. Checksum failed")
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let checksum = Checksum.crc32(Array(data))
+            print(checksum)
+        } catch {
+            print(error.localizedDescription)
+        }
+    }
 }
