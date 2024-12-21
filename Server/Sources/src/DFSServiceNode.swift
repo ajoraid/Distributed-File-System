@@ -55,10 +55,10 @@ class DFSServiceNode: DFSServiceProvider {
                     if !checked && FileManager.default.fileExists(atPath: path) {
                         print("File already exists: \(fileRequest.fileName)")
                         Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
-                        context.responsePromise.fail(
+                        return context.responsePromise.fail(
                             GRPCStatus(code: .alreadyExists, message: "File already exists at STORE request")
                         )
-                        return
+                        
                     }
 
                     if !FileManager.default.fileExists(atPath: path) {
@@ -74,7 +74,7 @@ class DFSServiceNode: DFSServiceProvider {
                 } catch {
                     print("Error writing file: \(error)")
                     Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
-                    context.responsePromise.fail(
+                    return context.responsePromise.fail(
                         GRPCStatus(code: .internalError, message: "Error writing file: \(error.localizedDescription)")
                     )
                 }
@@ -124,10 +124,19 @@ class DFSServiceNode: DFSServiceProvider {
     
     func delete(request: FileRequest,
                 context: any GRPC.StatusOnlyCallContext) -> NIOCore.EventLoopFuture<EmptyResponse> {
+        let path = "./\(self.mountPath)/\(request.fileName)"
         print("delete got called with \(request.fileName)")
+        
+        if !FileManager.default.fileExists(atPath: path) {
+            return context.eventLoop.makeFailedFuture(GRPCStatus(code: .notFound))
+        }
+        do {
+            try FileManager.default.removeItem(atPath: path)
+        } catch {
+            return context.eventLoop.makeFailedFuture(GRPCStatus(code: .internalError))
+        }
         let response = EmptyResponse()
         return context.eventLoop.makeSucceededFuture(response)
-        
     }
     
     private func getFileCheckSum(_ filename: String) {
