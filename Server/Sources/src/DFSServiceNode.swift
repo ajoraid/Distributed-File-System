@@ -96,6 +96,12 @@ class DFSServiceNode: DFSServiceProvider {
         let path = "./\(self.mountPath)/\(request.fileName)"
         if !FileManager.default.fileExists(atPath: path) {
             promise.fail(GRPCStatus(code: .notFound, message: "File was not found on server"))
+            return promise.futureResult
+        }
+        
+        if request.mtime > UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0) {
+            promise.fail(GRPCStatus(code: .cancelled, message: "File is old"))
+            return promise.futureResult
         }
         var content = FileContent()
         let chunkSize = 1024
@@ -111,6 +117,7 @@ class DFSServiceNode: DFSServiceProvider {
             promise.succeed(.ok)
         } catch {
             promise.fail(GRPCStatus(code: .internalError, message: "Failed to read file: \(error.localizedDescription)"))
+            return promise.futureResult
         }
         return promise.futureResult
     }
@@ -139,5 +146,18 @@ class DFSServiceNode: DFSServiceProvider {
         } catch {
             print(error.localizedDescription)
         }
+    }
+    
+    func getFileModificationTime(filePath: String) -> Date? {
+        let fileManager = FileManager.default
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: filePath)
+            if let modificationDate = attributes[.modificationDate] as? Date {
+                return modificationDate
+            }
+        } catch {
+            print("Error getting file attributes: \(error)")
+        }
+        return nil
     }
 }
