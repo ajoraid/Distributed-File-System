@@ -124,9 +124,15 @@ class DFSClient {
             print("LOG: Tried calling fetch but client is nil")
             return
         }
-        let call = client.fetch(FileRequest.with { $0.fileName = filename }) { response in
+        let path = "./\(self.mountPath)/\(filename)"
+        var request = FileRequest()
+        request.fileName = filename
+        request.fileChecksum = getFileCheckSum(filename)
+        request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+        print("mtime: \(request.mtime)")
+        let call = client.fetch(request) { response in
             print("Received chunk: \(response.fileContent) bytes")
-            let path = "./\(self.mountPath)/\(filename)"
+            
             let fileURL = URL(fileURLWithPath: path)
             
             if !FileManager.default.fileExists(atPath: path) {
@@ -165,21 +171,36 @@ class DFSClient {
         }
     }
     
-    private func getFileCheckSum(_ filename: String) {
+    private func getFileCheckSum(_ filename: String) -> UInt32 {
         let path = "./\(mountPath)/\(filename)"
         let fileURL = URL(fileURLWithPath: path)
         
         if !FileManager.default.fileExists(atPath: path) {
             print("File does not exist. Checksum failed")
-            return
+            return 0
         }
         
         do {
             let data = try Data(contentsOf: fileURL)
             let checksum = Checksum.crc32(Array(data))
             print(checksum)
+            return checksum
         } catch {
             print(error.localizedDescription)
         }
+        return 0
+    }
+    
+    func getFileModificationTime(filePath: String) -> Date? {
+        let fileManager = FileManager.default
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: filePath)
+            if let modificationDate = attributes[.modificationDate] as? Date {
+                return modificationDate
+            }
+        } catch {
+            print("Error getting file attributes: \(error)")
+        }
+        return nil
     }
 }

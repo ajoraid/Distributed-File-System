@@ -10,7 +10,7 @@ service DFSService {
 message FileRequest {
     string fileName = 1;
     bytes fileContent = 2;
-    uint64 fileChecksum = 3;
+    uint32 fileChecksum = 3;
     uint64 mtime = 4;
     string userid = 5;
 }

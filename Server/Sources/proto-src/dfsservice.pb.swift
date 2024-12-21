@@ -30,7 +30,7 @@ struct FileRequest: @unchecked Sendable {
 
   var fileContent: Data = Data()
 
-  var fileChecksum: UInt64 = 0
+  var fileChecksum: UInt32 = 0
 
   var mtime: UInt64 = 0
 
@@ -85,7 +85,7 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.fileName) }()
       case 2: try { try decoder.decodeSingularBytesField(value: &self.fileContent) }()
-      case 3: try { try decoder.decodeSingularUInt64Field(value: &self.fileChecksum) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.fileChecksum) }()
       case 4: try { try decoder.decodeSingularUInt64Field(value: &self.mtime) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.userid) }()
       default: break
@@ -101,7 +101,7 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       try visitor.visitSingularBytesField(value: self.fileContent, fieldNumber: 2)
     }
     if self.fileChecksum != 0 {
-      try visitor.visitSingularUInt64Field(value: self.fileChecksum, fieldNumber: 3)
+      try visitor.visitSingularUInt32Field(value: self.fileChecksum, fieldNumber: 3)
     }
     if self.mtime != 0 {
       try visitor.visitSingularUInt64Field(value: self.mtime, fieldNumber: 4)
