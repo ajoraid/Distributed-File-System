@@ -126,10 +126,10 @@ class DFSClient {
         }
         let path = "./\(self.mountPath)/\(filename)"
         var request = FileRequest()
+        var madeEmpty = false
         request.fileName = filename
         request.fileChecksum = getFileCheckSum(filename)
         request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
-        print("mtime: \(request.mtime)")
         let call = client.fetch(request) { response in
             print("Received chunk: \(response.fileContent) bytes")
             
@@ -141,6 +141,7 @@ class DFSClient {
             
             do {
                 let fileHandle = try FileHandle(forWritingTo: fileURL)
+                if !madeEmpty { fileHandle.truncateFile(atOffset: 0); madeEmpty.toggle() }
                 defer { try? fileHandle.close() }
                 fileHandle.seekToEndOfFile()
                 fileHandle.write(response.fileContent)
