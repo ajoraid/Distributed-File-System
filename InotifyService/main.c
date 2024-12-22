@@ -7,15 +7,12 @@
 #include <string.h>
 #include <semaphore.h>
 
-#define SHM_KEY 9876
-#define SHM_SIZE 4000
+#define SHM_KEY 1234
+#define SHM_SIZE sizeof(memory_segment)
 
 typedef struct {
-    sem_t read_sem;
-    sem_t write_sem;
-    void* addr;
-    char mount_path[1024];
-    char events[1024];
+    char events[256];
+    char wsem[256];
 } memory_segment;
 
 int main() {
@@ -25,20 +22,22 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    char* memory = (char*)shmat(shm_id, NULL, 0);
-    if (memory == (char*)-1) {
+    memory_segment* memory = (memory_segment*)shmat(shm_id, NULL, 0);
+    if (memory == (memory_segment*)-1) {
         perror("shmat");
         exit(EXIT_FAILURE);
     }
 
 
     const char* message = "Hello from C!";
-    strncpy(memory, message, sizeof(memory));
+    const char* message2 = "Hello from sem!";
+    strncpy(memory->events, message, sizeof(memory->events));
+    strncpy(memory->wsem, message2, sizeof(memory->wsem));
 
-    printf("Written to shared memory: %s\n", memory);
 
     while (1) {
-        printf("Written to shared memory: %s\n", memory);
+        printf("Written to shared memory: %s\n", memory->events);
+        printf("Written to shared memory: %s\n", memory->wsem);
 
         sleep(20);
     }
