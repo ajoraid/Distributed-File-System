@@ -33,13 +33,33 @@ class DFSClient {
         case .delete:
             delete(fileName)
         case .mount:
-            return
+            setupInotifySharedMemory()
         }
     }
     
     private func inotifyWatcher() {}
-    private func setupInotifySharedMemory() {}
-    
+
+    private func setupInotifySharedMemory() {
+        let SHM_KEY: key_t = 9876
+        let SHM_SIZE = 4000
+        
+        let shm_id = shmget(SHM_KEY, SHM_SIZE, 0666)
+        if shm_id == -1 {
+            perror("shmget")
+            print("Error code: \(errno)")
+            exit(EXIT_FAILURE)
+        }
+        
+        if let shmPtr = shmat(shm_id, nil, 0) {
+            let sharedMemoryContent = String(cString: shmPtr.assumingMemoryBound(to: CChar.self))
+            print("Read from shared memory: \(sharedMemoryContent)")
+        } else {
+            perror("shmat failed")
+            exit(1)
+        }
+        
+    }
+
     func run() {
         let configuration = ClientConnection(configuration: .default(target: .hostAndPort(address, 27000),
                                                                      eventLoopGroup: MultiThreadedEventLoopGroup(numberOfThreads: 1)))
