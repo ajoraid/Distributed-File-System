@@ -38,26 +38,48 @@ class DFSClient {
     }
     
     private func inotifyWatcher() {}
+    
+    @frozen
+    public struct memory_segment {
+        var events: UnsafeBufferPointer<CChar>
+        var wsem: UnsafeBufferPointer<CChar>
+    }
 
     private func setupInotifySharedMemory() {
-        let SHM_KEY: key_t = 9876
-        let SHM_SIZE = 4000
-        
+        let SHM_KEY: key_t = 2468
+        let SHM_SIZE = 256 * 2
+
         let shm_id = shmget(SHM_KEY, SHM_SIZE, 0666)
         if shm_id == -1 {
             perror("shmget")
             print("Error code: \(errno)")
             exit(EXIT_FAILURE)
         }
-        
-        if let shmPtr = shmat(shm_id, nil, 0) {
-            let sharedMemoryContent = String(cString: shmPtr.assumingMemoryBound(to: CChar.self))
-            print("Read from shared memory: \(sharedMemoryContent)")
-        } else {
+        guard let shmPtr = shmat(shm_id, nil, 0), shmPtr != UnsafeMutableRawPointer(bitPattern: -1) else {
             perror("shmat failed")
-            exit(1)
+            exit(EXIT_FAILURE)
+        }
+
+        var sharedMemoryContent = shmPtr.assumingMemoryBound(to: memory_segment.self)
+        var events = [UInt8]()
+        var sem = [UInt8]()
+
+        withUnsafeBytes(of: &sharedMemoryContent.pointee.events) { pointer in
+            for i in 0..<pointer.count {
+                events.append(pointer[i])
+            }
         }
         
+        withUnsafeBytes(of: &sharedMemoryContent.pointee.wsem) { pointer in
+            for i in 0..<pointer.count {
+                sem.append(pointer[i])
+            }
+        }
+        
+        let data = Data(bytes: events, count: events.count)
+        if let eventString = String(data: data, encoding: .utf8) { print("event: \(eventString)") }
+        let data2 = Data(bytes: sem, count: sem.count)
+        if let semString = String(data: data2, encoding: .utf8) { print("sem: \(semString)") }
     }
 
     func run() {
