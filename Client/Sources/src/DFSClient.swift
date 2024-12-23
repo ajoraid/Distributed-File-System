@@ -39,15 +39,9 @@ class DFSClient {
     
     private func inotifyWatcher() {}
     
-    @frozen
-    public struct memory_segment {
-        var events: UnsafeBufferPointer<CChar>
-        var wsem: UnsafeBufferPointer<CChar>
-    }
-
     private func setupInotifySharedMemory() {
-        let SHM_KEY: key_t = 2468
-        let SHM_SIZE = 256 * 2
+        let SHM_KEY: key_t = 1357
+        let SHM_SIZE = 1024
 
         let shm_id = shmget(SHM_KEY, SHM_SIZE, 0666)
         if shm_id == -1 {
@@ -55,31 +49,33 @@ class DFSClient {
             print("Error code: \(errno)")
             exit(EXIT_FAILURE)
         }
+
         guard let shmPtr = shmat(shm_id, nil, 0), shmPtr != UnsafeMutableRawPointer(bitPattern: -1) else {
             perror("shmat failed")
             exit(EXIT_FAILURE)
         }
 
-        var sharedMemoryContent = shmPtr.assumingMemoryBound(to: memory_segment.self)
-        var events = [UInt8]()
-        var sem = [UInt8]()
+        let sharedMemoryContent = shmPtr.assumingMemoryBound(to: UInt8.self)
 
-        withUnsafeBytes(of: &sharedMemoryContent.pointee.events) { pointer in
-            for i in 0..<pointer.count {
-                events.append(pointer[i])
-            }
+        let eventsData = Data(bytes: sharedMemoryContent, count: 255)
+        let wsemData = Data(bytes: sharedMemoryContent.advanced(by: 255), count: 255)
+        let rsemData = Data(bytes: sharedMemoryContent.advanced(by: 255 * 2), count: 255)
+        let content = Data(bytes: sharedMemoryContent.advanced(by: 255 * 3), count: 255)
+        if let eventsString = String(data: eventsData, encoding: .utf8) {
+            print("Events: \(eventsString)")
+        }
+
+        if let wsemString = String(data: wsemData, encoding: .utf8) {
+            print("W Semaphores: \(wsemString)")
         }
         
-        withUnsafeBytes(of: &sharedMemoryContent.pointee.wsem) { pointer in
-            for i in 0..<pointer.count {
-                sem.append(pointer[i])
-            }
+        if let rsemString = String(data: rsemData, encoding: .utf8) {
+            print("R Semaphores: \(rsemString)")
         }
         
-        let data = Data(bytes: events, count: events.count)
-        if let eventString = String(data: data, encoding: .utf8) { print("event: \(eventString)") }
-        let data2 = Data(bytes: sem, count: sem.count)
-        if let semString = String(data: data2, encoding: .utf8) { print("sem: \(semString)") }
+        if let contentString = String(data: content, encoding: .utf8) {
+            print("Content: \(contentString)")
+        }
     }
 
     func run() {
