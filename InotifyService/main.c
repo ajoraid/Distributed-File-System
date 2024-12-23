@@ -6,18 +6,33 @@
 #include <unistd.h>
 #include <string.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include <signal.h>
 
 #define SHM_KEY 1357
 #define SHM_SIZE 1024
 
 typedef struct {
-    char events[256];
-    char wsem[256];
-    char rsem[256];
-    char data[256];
+    char event[256];
 } memory_segment;
 
+void cleanup() {
+    printf("Program is exiting, cleaning up\n");
+    sem_unlink("/read_sem");
+    sem_unlink("/write_sem");
+}
+
+void sigint_handler(int signum) {
+    printf("\nSIGINT\n");
+    cleanup();
+    exit(0);
+}
+
 int main() {
+    if (signal(SIGINT, sigint_handler) == SIG_ERR) {
+        perror("Unable to catch SIGINT");
+        return EXIT_FAILURE;
+    }
     int shm_id = shmget(SHM_KEY, SHM_SIZE, IPC_CREAT | 0666);
     if (shm_id == -1) {
         perror("shmget");
@@ -30,23 +45,23 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    sem_t* rsem = sem_open("/read_sem", O_CREAT, S_IRUSR | S_IWUSR, 0);
+    sem_t* wsem = sem_open("/write_sem", O_CREAT, S_IRUSR | S_IWUSR, 1);
 
-    const char* message = "Hello from C!";
-    const char* message2 = "Hello from wsem!";
-    const char* message3 = "Hello from rsem!";
-    const char* message4 = "Hello from data!";
-    strncpy(memory->events, message, sizeof(memory->events));
-    strncpy(memory->wsem, message2, sizeof(memory->wsem));
-    strncpy(memory->rsem, message3, sizeof(memory->rsem));
-    strncpy(memory->data, message4, sizeof(memory->data));
+    if (rsem == SEM_FAILED || wsem == SEM_FAILED) {
+        perror("sem_open");
+        exit(EXIT_FAILURE);
+    }
 
+    const char* event = "THIS WILL BE inotify EVENT!";
+    strncpy(memory->event, event, sizeof(memory->event));
 
     while (1) {
-        printf("Written to shared memory: %s\n", memory->events);
-        printf("Written to shared memory: %s\n", memory->wsem);
-        printf("Written to shared memory: %s\n", memory->rsem);
-        printf("Written to shared memory: %s\n", memory->data);
-        sleep(20);
+        sem_wait(wsem);
+        printf("Event: %s\n", memory->event);
+        sem_post(rsem);
+        sleep(5);
+        
     }
 
     if (shmdt(memory) == -1) {
@@ -57,5 +72,8 @@ int main() {
         perror("shmctl");
     }
 
-    return 0;
+    sem_unlink("/read_sem");
+    sem_unlink("/write_sem");
+
+    return EXIT_SUCCESS;
 }

@@ -56,25 +56,30 @@ class DFSClient {
         }
 
         let sharedMemoryContent = shmPtr.assumingMemoryBound(to: UInt8.self)
-
-        let eventsData = Data(bytes: sharedMemoryContent, count: 255)
-        let wsemData = Data(bytes: sharedMemoryContent.advanced(by: 255), count: 255)
-        let rsemData = Data(bytes: sharedMemoryContent.advanced(by: 255 * 2), count: 255)
-        let content = Data(bytes: sharedMemoryContent.advanced(by: 255 * 3), count: 255)
-        if let eventsString = String(data: eventsData, encoding: .utf8) {
-            print("Events: \(eventsString)")
+        
+        guard let rsem = sem_open("/read_sem", 0) else {
+            perror("Failed to open read semaphore")
+            return
         }
 
-        if let wsemString = String(data: wsemData, encoding: .utf8) {
-            print("W Semaphores: \(wsemString)")
+        guard let wsem = sem_open("/write_sem", 0) else {
+            perror("Failed to open write semaphore")
+            return
         }
         
-        if let rsemString = String(data: rsemData, encoding: .utf8) {
-            print("R Semaphores: \(rsemString)")
+        while true {
+            sem_wait(rsem)
+            let eventsData = Data(bytes: sharedMemoryContent, count: 255)
+            if let eventsString = String(data: eventsData, encoding: .utf8) { print("Events: \(eventsString)") }
+            sem_post(wsem)
+            sleep(5)
         }
-        
-        if let contentString = String(data: content, encoding: .utf8) {
-            print("Content: \(contentString)")
+
+        if sem_close(rsem) == -1 {
+            perror("Failed to close read semaphore")
+        }
+        if sem_close(wsem) == -1 {
+            perror("Failed to close write semaphore")
         }
     }
 
