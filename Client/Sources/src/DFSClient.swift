@@ -70,7 +70,21 @@ class DFSClient {
         while true {
             sem_wait(rsem)
             let eventsData = Data(bytes: sharedMemoryContent, count: 255)
-            if let eventsString = String(data: eventsData, encoding: .utf8) { print("Events: \(eventsString)") }
+            let cleanData = eventsData.prefix { $0 != 0 }
+            if let eventsString = String(data: cleanData, encoding: .utf8) {
+                let inotifyData = eventsString.split(separator: "|")
+                let (filename, event) = (String(inotifyData[0]), String(inotifyData[1]))
+                switch event {
+                case "create":
+                    print("CREATE")
+                case "modify":
+                    print("MODIFY")
+                case "delete":
+                    print("DELETE")
+                default:
+                    break
+                }
+            }
             sem_post(wsem)
         }
 
@@ -120,11 +134,13 @@ class DFSClient {
             print("File already locked on server: \(filename). Skipping upload.")
             return
         }
-
+        let path = "./\(mountPath)/\(filename)"
         var request = FileRequest()
         request.fileName = filename
+        request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+        request.fileChecksum = getFileCheckSum(filename)
         let chunkSize = 1024
-        let fileURL = URL(fileURLWithPath: "./\(mountPath)/\(filename)")
+        let fileURL = URL(fileURLWithPath: path)
 
         do {
             let call = client.store()
