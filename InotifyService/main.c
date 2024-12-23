@@ -7,12 +7,14 @@
 #include <string.h>
 #include <semaphore.h>
 
-#define SHM_KEY 1234
-#define SHM_SIZE sizeof(memory_segment)
+#define SHM_KEY 1357
+#define SHM_SIZE 1024
 
 typedef struct {
     char events[256];
     char wsem[256];
+    char rsem[256];
+    char data[256];
 } memory_segment;
 
 int main() {
@@ -30,15 +32,20 @@ int main() {
 
 
     const char* message = "Hello from C!";
-    const char* message2 = "Hello from sem!";
+    const char* message2 = "Hello from wsem!";
+    const char* message3 = "Hello from rsem!";
+    const char* message4 = "Hello from data!";
     strncpy(memory->events, message, sizeof(memory->events));
     strncpy(memory->wsem, message2, sizeof(memory->wsem));
+    strncpy(memory->rsem, message3, sizeof(memory->rsem));
+    strncpy(memory->data, message4, sizeof(memory->data));
 
 
     while (1) {
         printf("Written to shared memory: %s\n", memory->events);
         printf("Written to shared memory: %s\n", memory->wsem);
-
+        printf("Written to shared memory: %s\n", memory->rsem);
+        printf("Written to shared memory: %s\n", memory->data);
         sleep(20);
     }
 
