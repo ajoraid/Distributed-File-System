@@ -125,7 +125,6 @@ int main()
             i += (used / sizeof(char));
         }
         strncpy(memory->event, event_buffer, sizeof(memory->event));
-        printf("Event: %s\n", memory->event);
         sem_post(rsem);
     }
 
