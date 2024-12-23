@@ -72,7 +72,6 @@ class DFSClient {
             let eventsData = Data(bytes: sharedMemoryContent, count: 255)
             if let eventsString = String(data: eventsData, encoding: .utf8) { print("Events: \(eventsString)") }
             sem_post(wsem)
-            sleep(5)
         }
 
         if sem_close(rsem) == -1 {
