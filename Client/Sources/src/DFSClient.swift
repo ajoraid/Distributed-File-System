@@ -76,11 +76,11 @@ class DFSClient {
                 let (filename, event) = (String(inotifyData[0]), String(inotifyData[1]))
                 switch event {
                 case "create":
-                    print("CREATE")
+                    store(filename)
                 case "modify":
-                    print("MODIFY")
+                    store(filename)
                 case "delete":
-                    print("DELETE")
+                    delete(filename)
                 default:
                     break
                 }
