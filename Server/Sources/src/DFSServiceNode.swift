@@ -44,6 +44,7 @@ class DFSServiceNode: DFSServiceProvider {
     
     func store(context: GRPC.UnaryResponseCallContext<FileContent>) -> EventLoopFuture<(GRPC.StreamEvent<FileRequest>) -> Void> {
         var checked = false
+        var madeEmpty = false
         var filenametemp: String?
         let handler: (GRPC.StreamEvent<FileRequest>) -> Void = { [weak self] event in
             guard let self else { return }
@@ -52,7 +53,7 @@ class DFSServiceNode: DFSServiceProvider {
                 let path = "./\(self.mountPath)/\(fileRequest.fileName)"
                 filenametemp = fileRequest.fileName
                 do {
-                    if !checked && FileManager.default.fileExists(atPath: path) {
+                    if !checked && FileManager.default.fileExists(atPath: path) && UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0) > fileRequest.mtime {
                         print("File already exists: \(fileRequest.fileName)")
                         Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
                         return context.responsePromise.fail(
@@ -66,10 +67,12 @@ class DFSServiceNode: DFSServiceProvider {
                         checked = true
                     }
 
-                    let fileURL = URL(fileURLWithPath: path)
+                    let fileURL = URL(fileURLWithPath: path)                    
                     let fileHandle = try FileHandle(forWritingTo: fileURL)
+                    if !madeEmpty { fileHandle.truncateFile(atOffset: 0); madeEmpty.toggle() }
+                    defer { try? fileHandle.close() }
                     fileHandle.seekToEndOfFile()
-                    try fileHandle.write(contentsOf: fileRequest.fileContent)
+                    fileHandle.write(fileRequest.fileContent)
 
                 } catch {
                     print("Error writing file: \(error)")
@@ -139,22 +142,24 @@ class DFSServiceNode: DFSServiceProvider {
         return context.eventLoop.makeSucceededFuture(response)
     }
     
-    private func getFileCheckSum(_ filename: String) {
+    private func getFileCheckSum(_ filename: String) -> UInt32 {
         let path = "./\(mountPath)/\(filename)"
         let fileURL = URL(fileURLWithPath: path)
         
         if !FileManager.default.fileExists(atPath: path) {
             print("File does not exist. Checksum failed")
-            return
+            return 0
         }
         
         do {
             let data = try Data(contentsOf: fileURL)
             let checksum = Checksum.crc32(Array(data))
             print(checksum)
+            return checksum
         } catch {
             print(error.localizedDescription)
         }
+        return 0
     }
     
     func getFileModificationTime(filePath: String) -> Date? {
