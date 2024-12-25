@@ -33,6 +33,7 @@ class DFSClient {
         case .delete:
             delete(fileName)
         case .mount:
+            listenToServerUpdateList()
             setupInotifySharedMemory()
         }
     }
@@ -98,8 +99,18 @@ class DFSClient {
 
     func run() {
         let configuration = ClientConnection(configuration: .default(target: .hostAndPort(address, 27000),
-                                                                     eventLoopGroup: MultiThreadedEventLoopGroup(numberOfThreads: 1)))
+                                                                     eventLoopGroup: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)))
         client = DFSServiceNIOClient(channel: configuration)
+        RunLoop.current.run()
+    }
+    
+    private func listenToServerUpdateList() {
+        Task.detached {
+            while true {
+                print("from thread update list")
+                sleep(10)
+            }
+        }
     }
     
     private func lock(_ filename: String) -> GRPCStatus.Code {

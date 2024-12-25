@@ -49,7 +49,9 @@ struct DFSClientCLI: ParsableCommand {
         let client = DFSClient(address: address,
                                mountPath: mountPath,
                                timeout: timeout)
-        client.run()
+        Task {
+            client.run()
+        }
         client.processCommand(for: validCommand, fileName: fileName)
     }
 }
