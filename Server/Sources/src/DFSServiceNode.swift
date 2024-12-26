@@ -21,6 +21,16 @@ class DFSServiceNode: DFSServiceProvider {
     let deadline: Int64
     let pubSubHandler = PublishSubject<String>()
     let disposeBag = DisposeBag()
+    struct Stone {
+        let filename: String
+        let fileDeletionTime: UInt64
+        
+        init(filename: String) {
+            self.filename = filename
+            self.fileDeletionTime = UInt64(Date().timeIntervalSince1970 * 1000)
+        }
+    }
+    var tombstones = [Stone]()
     
     init(eventLoopGroup: EventLoopGroup, mountPath: String, deadline: Int64, interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
         self.eventLoopGroup = eventLoopGroup
@@ -50,6 +60,12 @@ class DFSServiceNode: DFSServiceProvider {
         print("are we here chat?")
         let promise = context.eventLoop.makePromise(of: FilesList.self)
         var response = FilesList()
+        for tombstone in tombstones {
+            var stone = Stones()
+            stone.fileName = tombstone.filename
+            stone.deletionTime = tombstone.fileDeletionTime
+            response.tombstones.append(stone)
+        }
         do {
             let filesList = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)")
             print(filesList)
@@ -104,6 +120,14 @@ class DFSServiceNode: DFSServiceProvider {
             guard let self else { return }
             switch event {
             case .message(let fileRequest):
+                if let toBeRemovedFromTombstone = tombstones.first(where: {$0.filename == fileRequest.fileName}) {
+                    if toBeRemovedFromTombstone.fileDeletionTime > fileRequest.mtime {
+                        return context.responsePromise.fail(
+                            GRPCStatus(code: .aborted, message: "File was deleted recently")
+                        )
+                    }
+                    tombstones.removeAll(where: {$0.filename == fileRequest.fileName})
+                }
                 let path = "./\(self.mountPath)/\(fileRequest.fileName)"
                 filenametemp = fileRequest.fileName
                 do {
@@ -188,7 +212,9 @@ class DFSServiceNode: DFSServiceProvider {
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .notFound))
         }
         do {
+            tombstones.append(.init(filename: request.fileName))
             try FileManager.default.removeItem(atPath: path)
+            notifyFileSocketServer()
         } catch {
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .internalError))
         }
