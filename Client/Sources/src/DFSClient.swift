@@ -11,6 +11,7 @@ import NIO
 import CryptoSwift
 import Vapor
 class DFSClient: @unchecked Sendable {
+    private let key: Int
     private let address: String
     private let mountPath: String
     private let timeout: Int
@@ -18,10 +19,11 @@ class DFSClient: @unchecked Sendable {
     private var userID: String
     private var lock = NSLock()
     
-    init(address: String, mountPath: String, timeout: Int) {
+    init(key: Int, address: String, mountPath: String, timeout: Int) {
         self.address = address
         self.mountPath = mountPath
         self.timeout = timeout
+        self.key = key
         userID = UUID().uuidString
     }
     
@@ -42,7 +44,7 @@ class DFSClient: @unchecked Sendable {
     private func inotifyWatcher() {}
     
     private func setupInotifySharedMemory() {
-        let SHM_KEY: key_t = 1357
+        let SHM_KEY: key_t = key_t(key)
         let SHM_SIZE = 1024
 
         let shm_id = shmget(SHM_KEY, SHM_SIZE, 0666)
