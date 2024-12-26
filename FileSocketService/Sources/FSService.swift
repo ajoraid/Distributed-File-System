@@ -15,7 +15,7 @@ struct FSService {
     static func main() {
         let application = Application()
         defer { application.shutdown() }
-        application.http.server.configuration.port = 5000
+        application.http.server.configuration.port = 8080
         application.webSocket("socket") { req, ws in
             let clientID = UUID()
             lock.lock()
@@ -27,9 +27,9 @@ struct FSService {
             ws.onClose.whenComplete { _ in
                 lock.lock()
                 activeWebSockets.removeValue(forKey: clientID)
+                lock.unlock()
             }
             print("Client closed: \(clientID)")
-            lock.unlock()
         }
         
         application.post("notify") { req -> HTTPStatus in
