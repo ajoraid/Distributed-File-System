@@ -5,6 +5,11 @@ service DFSService {
     rpc Store(stream FileRequest) returns (FileContent);
     rpc Fetch(FileRequest) returns (stream FileContent);
     rpc Delete(FileRequest) returns (EmptyResponse);
+    rpc PubSubFileEvents (EmptyResponse) returns (FilesList);
+}
+
+message FilesList {
+    repeated FileRequest files = 1;
 }
 
 message FileRequest {

@@ -30,7 +30,6 @@ actor WriterLockMap {
             return item.userID == clientID
         }
         map[filename] = .init(userID: clientID)
-        print(map)
         return true
     }
     

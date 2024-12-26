@@ -6,15 +6,21 @@
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import GRPC
 import NIOCore
 import NIOPosix
 import CryptoSwift
+import RxSwift
 
 class DFSServiceNode: DFSServiceProvider {
     let eventLoopGroup: EventLoopGroup
     let mountPath: String
     let deadline: Int64
+    let pubSubHandler = PublishSubject<String>()
+    let disposeBag = DisposeBag()
     
     init(eventLoopGroup: EventLoopGroup, mountPath: String, deadline: Int64, interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
         self.eventLoopGroup = eventLoopGroup
@@ -24,6 +30,54 @@ class DFSServiceNode: DFSServiceProvider {
     }
     
     var interceptors: (any DFSServiceServerInterceptorFactoryProtocol)?
+    
+    private func notifyFileSocketServer() {
+        let baseURL = URL(string: "http://127.0.0.1:8080")!
+        let notifyEndpoint = baseURL.appendingPathComponent("notify")
+        var request = URLRequest(url: notifyEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let task = URLSession.shared.dataTask(with: request) { (data, response, error) in
+            if let error = error {
+                print("Error: \(error.localizedDescription)")
+                return
+            }
+        }
+        task.resume()
+    }
+    
+    func pubSubFileEvents(request: EmptyResponse, context: any GRPC.StatusOnlyCallContext) -> NIOCore.EventLoopFuture<FilesList> {
+        print("are we here chat?")
+        let promise = context.eventLoop.makePromise(of: FilesList.self)
+        var response = FilesList()
+        do {
+            let filesList = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)")
+            print(filesList)
+            let files = filesList.filter { item in
+                var isDirectory: ObjCBool = false
+                let fullPath = (mountPath as NSString).appendingPathComponent(item)
+                FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory)
+                return !isDirectory.boolValue
+            }
+            
+            for file in files {
+                let current = getFileStats(file)
+                response.files.append(current)
+            }
+            promise.succeed(response)
+        } catch {
+            print(error)
+        }
+        return promise.futureResult
+    }
+    
+    private func getFileStats(_ filename: String) -> FileRequest {
+        var file = FileRequest()
+        file.fileName = filename
+        file.fileChecksum = getFileCheckSum(filename)
+        file.mtime = UInt64(getFileModificationTime(filePath: "./\(mountPath)/\(filename)")?.timeIntervalSince1970 ?? 0)
+        return file
+    }
     
     func lock(request: FileRequest,
               context: GRPC.StatusOnlyCallContext) -> EventLoopFuture<EmptyResponse> {
@@ -88,7 +142,7 @@ class DFSServiceNode: DFSServiceProvider {
                 context.responsePromise.succeed(FileContent())
             }
         }
-
+        notifyFileSocketServer()
         return context.eventLoop.makeSucceededFuture(handler)
     }
 

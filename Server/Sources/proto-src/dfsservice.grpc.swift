@@ -35,6 +35,11 @@ internal protocol DFSServiceClientProtocol: GRPCClient {
     _ request: FileRequest,
     callOptions: CallOptions?
   ) -> UnaryCall<FileRequest, EmptyResponse>
+
+  func pubSubFileEvents(
+    _ request: EmptyResponse,
+    callOptions: CallOptions?
+  ) -> UnaryCall<EmptyResponse, FilesList>
 }
 
 extension DFSServiceClientProtocol {
@@ -114,6 +119,24 @@ extension DFSServiceClientProtocol {
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       interceptors: self.interceptors?.makeDeleteInterceptors() ?? []
+    )
+  }
+
+  /// Unary call to PubSubFileEvents
+  ///
+  /// - Parameters:
+  ///   - request: Request to send to PubSubFileEvents.
+  ///   - callOptions: Call options.
+  /// - Returns: A `UnaryCall` with futures for the metadata, status and response.
+  internal func pubSubFileEvents(
+    _ request: EmptyResponse,
+    callOptions: CallOptions? = nil
+  ) -> UnaryCall<EmptyResponse, FilesList> {
+    return self.makeUnaryCall(
+      path: DFSServiceClientMetadata.Methods.pubSubFileEvents.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makePubSubFileEventsInterceptors() ?? []
     )
   }
 }
@@ -198,6 +221,11 @@ internal protocol DFSServiceAsyncClientProtocol: GRPCClient {
     _ request: FileRequest,
     callOptions: CallOptions?
   ) -> GRPCAsyncUnaryCall<FileRequest, EmptyResponse>
+
+  func makePubSubFileEventsCall(
+    _ request: EmptyResponse,
+    callOptions: CallOptions?
+  ) -> GRPCAsyncUnaryCall<EmptyResponse, FilesList>
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -253,6 +281,18 @@ extension DFSServiceAsyncClientProtocol {
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       interceptors: self.interceptors?.makeDeleteInterceptors() ?? []
+    )
+  }
+
+  internal func makePubSubFileEventsCall(
+    _ request: EmptyResponse,
+    callOptions: CallOptions? = nil
+  ) -> GRPCAsyncUnaryCall<EmptyResponse, FilesList> {
+    return self.makeAsyncUnaryCall(
+      path: DFSServiceClientMetadata.Methods.pubSubFileEvents.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makePubSubFileEventsInterceptors() ?? []
     )
   }
 }
@@ -318,6 +358,18 @@ extension DFSServiceAsyncClientProtocol {
       interceptors: self.interceptors?.makeDeleteInterceptors() ?? []
     )
   }
+
+  internal func pubSubFileEvents(
+    _ request: EmptyResponse,
+    callOptions: CallOptions? = nil
+  ) async throws -> FilesList {
+    return try await self.performAsyncUnaryCall(
+      path: DFSServiceClientMetadata.Methods.pubSubFileEvents.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makePubSubFileEventsInterceptors() ?? []
+    )
+  }
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -350,6 +402,9 @@ internal protocol DFSServiceClientInterceptorFactoryProtocol: Sendable {
 
   /// - Returns: Interceptors to use when invoking 'delete'.
   func makeDeleteInterceptors() -> [ClientInterceptor<FileRequest, EmptyResponse>]
+
+  /// - Returns: Interceptors to use when invoking 'pubSubFileEvents'.
+  func makePubSubFileEventsInterceptors() -> [ClientInterceptor<EmptyResponse, FilesList>]
 }
 
 internal enum DFSServiceClientMetadata {
@@ -361,6 +416,7 @@ internal enum DFSServiceClientMetadata {
       DFSServiceClientMetadata.Methods.store,
       DFSServiceClientMetadata.Methods.fetch,
       DFSServiceClientMetadata.Methods.delete,
+      DFSServiceClientMetadata.Methods.pubSubFileEvents,
     ]
   )
 
@@ -388,6 +444,12 @@ internal enum DFSServiceClientMetadata {
       path: "/DFSService/Delete",
       type: GRPCCallType.unary
     )
+
+    internal static let pubSubFileEvents = GRPCMethodDescriptor(
+      name: "PubSubFileEvents",
+      path: "/DFSService/PubSubFileEvents",
+      type: GRPCCallType.unary
+    )
   }
 }
 
@@ -402,6 +464,8 @@ internal protocol DFSServiceProvider: CallHandlerProvider {
   func fetch(request: FileRequest, context: StreamingResponseCallContext<FileContent>) -> EventLoopFuture<GRPCStatus>
 
   func delete(request: FileRequest, context: StatusOnlyCallContext) -> EventLoopFuture<EmptyResponse>
+
+  func pubSubFileEvents(request: EmptyResponse, context: StatusOnlyCallContext) -> EventLoopFuture<FilesList>
 }
 
 extension DFSServiceProvider {
@@ -452,6 +516,15 @@ extension DFSServiceProvider {
         userFunction: self.delete(request:context:)
       )
 
+    case "PubSubFileEvents":
+      return UnaryServerHandler(
+        context: context,
+        requestDeserializer: ProtobufDeserializer<EmptyResponse>(),
+        responseSerializer: ProtobufSerializer<FilesList>(),
+        interceptors: self.interceptors?.makePubSubFileEventsInterceptors() ?? [],
+        userFunction: self.pubSubFileEvents(request:context:)
+      )
+
     default:
       return nil
     }
@@ -484,6 +557,11 @@ internal protocol DFSServiceAsyncProvider: CallHandlerProvider, Sendable {
     request: FileRequest,
     context: GRPCAsyncServerCallContext
   ) async throws -> EmptyResponse
+
+  func pubSubFileEvents(
+    request: EmptyResponse,
+    context: GRPCAsyncServerCallContext
+  ) async throws -> FilesList
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -541,6 +619,15 @@ extension DFSServiceAsyncProvider {
         wrapping: { try await self.delete(request: $0, context: $1) }
       )
 
+    case "PubSubFileEvents":
+      return GRPCAsyncServerHandler(
+        context: context,
+        requestDeserializer: ProtobufDeserializer<EmptyResponse>(),
+        responseSerializer: ProtobufSerializer<FilesList>(),
+        interceptors: self.interceptors?.makePubSubFileEventsInterceptors() ?? [],
+        wrapping: { try await self.pubSubFileEvents(request: $0, context: $1) }
+      )
+
     default:
       return nil
     }
@@ -564,6 +651,10 @@ internal protocol DFSServiceServerInterceptorFactoryProtocol: Sendable {
   /// - Returns: Interceptors to use when handling 'delete'.
   ///   Defaults to calling `self.makeInterceptors()`.
   func makeDeleteInterceptors() -> [ServerInterceptor<FileRequest, EmptyResponse>]
+
+  /// - Returns: Interceptors to use when handling 'pubSubFileEvents'.
+  ///   Defaults to calling `self.makeInterceptors()`.
+  func makePubSubFileEventsInterceptors() -> [ServerInterceptor<EmptyResponse, FilesList>]
 }
 
 internal enum DFSServiceServerMetadata {
@@ -575,6 +666,7 @@ internal enum DFSServiceServerMetadata {
       DFSServiceServerMetadata.Methods.store,
       DFSServiceServerMetadata.Methods.fetch,
       DFSServiceServerMetadata.Methods.delete,
+      DFSServiceServerMetadata.Methods.pubSubFileEvents,
     ]
   )
 
@@ -600,6 +692,12 @@ internal enum DFSServiceServerMetadata {
     internal static let delete = GRPCMethodDescriptor(
       name: "Delete",
       path: "/DFSService/Delete",
+      type: GRPCCallType.unary
+    )
+
+    internal static let pubSubFileEvents = GRPCMethodDescriptor(
+      name: "PubSubFileEvents",
+      path: "/DFSService/PubSubFileEvents",
       type: GRPCCallType.unary
     )
   }
