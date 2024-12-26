@@ -9,22 +9,52 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/inotify.h>
+#include <getopt.h>
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUFFER_LEN 256
-#define SHM_KEY 1357
 #define SHM_SIZE 1024
+#define USAGE                                                                                                       \
+	"usage:\n"                                                                                                      \
+	"  INotifyService [options]\n"                                                                                  \
+	"options:\n"                                                                                                    \
+	"  -m [mount_path]      Path to folder to be watched\n"                                                         \
+    "  -s [shm_key]         The key to be used to open shared memory\n"                                             \
+	"  -r [read_semaphore]  The name of read semaphore to be used between Swift client and this service\n"          \
+	"  -w [write_semaphore] The name of write semaphore to be used between Swift client and this service\n "        \
+	"  -h Display help message\n"
+
+struct option long_options[] = {
+    {"mount_path", required_argument, 0, 'm'},
+    {"shm_key", required_argument, 0, 's'},
+    {"read_semaphore", required_argument, 0, 'r'},
+    {"write_semaphore", required_argument, 0, 'w'},
+    {"help", no_argument, 0, 'h'},
+    {0, 0, 0, 0}};
+
+const char *mount_path = NULL;
+const char *shm_key_string = NULL;
+char *endPtr;
+const char *read_semaphore = NULL;
+const char *write_semaphore = NULL;
+
+void usage()
+{
+	fprintf(stdout, "%s", USAGE);
+}
 
 typedef struct
 {
     char event[256];
+    char resem[256];
+    char wrsem[256];
 } memory_segment;
 
 void cleanup()
 {
     printf("Program is exiting, cleaning up\n");
-    sem_unlink("/read_sem");
-    sem_unlink("/write_sem");
+    sem_unlink(read_semaphore);
+    sem_unlink(write_semaphore);
 }
 
 void sigint_handler(int signum)
@@ -34,14 +64,52 @@ void sigint_handler(int signum)
     exit(0);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    int opt;
+    int option_index = 0;
+
+    while ((opt = getopt_long(argc, argv, "m:s:r:w:h", long_options, &option_index)) != -1)
+    {
+        switch (opt)
+        {
+        case 'm':
+            mount_path = optarg;
+            break;
+        case 's':
+            shm_key_string = optarg;
+            break;
+        case 'r':
+            read_semaphore = optarg;
+            break;
+        case 'w':
+            write_semaphore = optarg;
+            break;
+        case 'h':
+            usage();
+            exit(0);
+        default:
+            usage();
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (!mount_path || !shm_key_string || !read_semaphore || !write_semaphore)
+    {
+        fprintf(stderr, "Error: Missing required arguments\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+
+    long shm_key = strtol(shm_key_string, &endPtr, 10);
+
     if (signal(SIGINT, sigint_handler) == SIG_ERR)
     {
         perror("Unable to catch SIGINT");
         return EXIT_FAILURE;
     }
-    int shm_id = shmget(SHM_KEY, SHM_SIZE, IPC_CREAT | 0666);
+
+    int shm_id = shmget(shm_key, SHM_SIZE, IPC_CREAT | 0666);
     if (shm_id == -1)
     {
         perror("shmget");
@@ -55,8 +123,8 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    sem_t *rsem = sem_open("/read_sem", O_CREAT, S_IRUSR | S_IWUSR, 0);
-    sem_t *wsem = sem_open("/write_sem", O_CREAT, S_IRUSR | S_IWUSR, 1);
+    sem_t *rsem = sem_open(read_semaphore, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    sem_t *wsem = sem_open(write_semaphore, O_CREAT, S_IRUSR | S_IWUSR, 1);
 
     if (rsem == SEM_FAILED || wsem == SEM_FAILED)
     {
@@ -64,8 +132,8 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    const char *event = "THIS WILL BE inotify EVENT!";
-    strncpy(memory->event, event, sizeof(memory->event));
+    strncpy(memory->resem, read_semaphore, sizeof(memory->resem));
+    strncpy(memory->wrsem, write_semaphore, sizeof(memory->wrsem));
 
     int fd;
     int wd;
@@ -78,7 +146,10 @@ int main()
         exit(1);
     }
 
-    wd = inotify_add_watch(fd, "../Client/Sources/files", IN_MODIFY | IN_CREATE | IN_DELETE | IN_ONLYDIR);
+    char path[EVENT_BUFFER_LEN];
+    snprintf(path, sizeof(path), "../Client/Sources/%s", mount_path);
+
+    wd = inotify_add_watch(fd, path, IN_MODIFY | IN_CREATE | IN_DELETE | IN_ONLYDIR);
     if (wd == -1)
     {
         perror("inotify_add_watch");
@@ -138,8 +209,8 @@ int main()
         perror("shmctl");
     }
 
-    sem_unlink("/read_sem");
-    sem_unlink("/write_sem");
+    sem_unlink(read_semaphore);
+    sem_unlink(write_semaphore);
 
     inotify_rm_watch(fd, wd);
     close(fd);
