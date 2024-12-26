@@ -9,13 +9,14 @@ import Foundation
 import GRPC
 import NIO
 import CryptoSwift
-
-class DFSClient {
+import Vapor
+class DFSClient: @unchecked Sendable {
     private let address: String
     private let mountPath: String
     private let timeout: Int
     private var client: DFSServiceNIOClient?
     private var userID: String
+    private var lock = NSLock()
     
     init(address: String, mountPath: String, timeout: Int) {
         self.address = address
@@ -33,7 +34,7 @@ class DFSClient {
         case .delete:
             delete(fileName)
         case .mount:
-            listenToServerUpdateList()
+            Task.detached { self.listenToServerUpdateList() }
             setupInotifySharedMemory()
         }
     }
@@ -75,6 +76,7 @@ class DFSClient {
             if let eventsString = String(data: cleanData, encoding: .utf8) {
                 let inotifyData = eventsString.split(separator: "|")
                 let (filename, event) = (String(inotifyData[0]), String(inotifyData[1]))
+                lock.lock()
                 switch event {
                 case "create":
                     store(filename)
@@ -85,6 +87,7 @@ class DFSClient {
                 default:
                     break
                 }
+                lock.unlock()
             }
             sem_post(wsem)
         }
@@ -101,14 +104,49 @@ class DFSClient {
         let configuration = ClientConnection(configuration: .default(target: .hostAndPort(address, 27000),
                                                                      eventLoopGroup: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)))
         client = DFSServiceNIOClient(channel: configuration)
-        RunLoop.current.run()
     }
     
     private func listenToServerUpdateList() {
         Task.detached {
-            while true {
-                print("from thread update list")
-                sleep(10)
+            WebSocket.connect(to: "ws://localhost:8080/socket", on: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)) { [weak self] ws in
+                ws.onText { ws, str in
+                    print("in socket")
+                    self?.lock.lock()
+                    self?.handlePubSubFileEvents()
+                    self?.lock.unlock()
+                }
+            }
+        }
+    }
+    
+    private func handlePubSubFileEvents() {
+        guard let client else {
+            print("LOG: Tried calling lock but client is nil")
+            return
+        }
+        var request = EmptyResponse()
+        let status = client.pubSubFileEvents(request)
+        Task {
+            do {
+                let res = try await status.response.get()
+                print(res)
+                let files = res.files
+                let path = "./\(self.mountPath)/"
+                for file in files {
+                    // check which recent and act accordingly
+                    if !FileManager.default.fileExists(atPath: path + file.fileName) {
+                        fetch(file.fileName)
+                    } else {
+                        let currChecksum = getFileCheckSum(file.fileName)
+                        let currModTime = UInt64(getFileModificationTime(filePath: path + file.fileName)?.timeIntervalSince1970 ?? 0)
+                        if currChecksum == file.fileChecksum { continue }
+                        if currModTime > file.mtime { store(file.fileName) }
+                        else { fetch(file.fileName) }
+                    }
+                }
+                print("Response received successfully.")
+            } catch {
+                print("Error while waiting for the response: \(error)")
             }
         }
     }
