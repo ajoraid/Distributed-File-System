@@ -10,6 +10,12 @@ service DFSService {
 
 message FilesList {
     repeated FileRequest files = 1;
+    repeated Stones tombstones = 2;
+}
+
+message Stones {
+    string fileName = 1;
+    uint64 deletionTime = 2;
 }
 
 message FileRequest {

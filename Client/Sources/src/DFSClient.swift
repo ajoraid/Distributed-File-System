@@ -135,10 +135,18 @@ class DFSClient: @unchecked Sendable {
                 for file in files {
                     // check which recent and act accordingly
                     if !FileManager.default.fileExists(atPath: path + file.fileName) {
-                        fetch(file.fileName)
+                        if !res.tombstones.contains(where: { $0.fileName == file.fileName }) {
+                            fetch(file.fileName)
+                        }
                     } else {
                         let currChecksum = getFileCheckSum(file.fileName)
                         let currModTime = UInt64(getFileModificationTime(filePath: path + file.fileName)?.timeIntervalSince1970 ?? 0)
+                        if let toBeDeleted = res.tombstones.first(where: { $0.fileName == file.fileName}) {
+                            if !handleServerDeletion(currModTime, toBeDeleted) {
+                                store(file.fileName)
+                                continue
+                            }
+                        }
                         if currChecksum == file.fileChecksum { continue }
                         if currModTime > file.mtime { store(file.fileName) }
                         else { fetch(file.fileName) }
@@ -149,6 +157,15 @@ class DFSClient: @unchecked Sendable {
                 print("Error while waiting for the response: \(error)")
             }
         }
+    }
+    
+    private func handleServerDeletion(_ currModTime: UInt64, _ stale: Stones) -> Bool {
+        if stale.deletionTime > currModTime {
+            do { try FileManager.default.removeItem(atPath: "./\(self.mountPath)/\(stale.fileName)") }
+            catch { print("error deleting at handleserverdeletion: \(error.localizedDescription)") }
+            return true
+        }
+        return false
     }
     
     private func lock(_ filename: String) -> GRPCStatus.Code {
