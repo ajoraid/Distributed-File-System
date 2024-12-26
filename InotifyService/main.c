@@ -14,15 +14,15 @@
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUFFER_LEN 256
 #define SHM_SIZE 1024
-#define USAGE                                                                                                       \
-	"usage:\n"                                                                                                      \
-	"  INotifyService [options]\n"                                                                                  \
-	"options:\n"                                                                                                    \
-	"  -m [mount_path]      Path to folder to be watched\n"                                                         \
-    "  -s [shm_key]         The key to be used to open shared memory\n"                                             \
-	"  -r [read_semaphore]  The name of read semaphore to be used between Swift client and this service\n"          \
-	"  -w [write_semaphore] The name of write semaphore to be used between Swift client and this service\n "        \
-	"  -h Display help message\n"
+#define USAGE                                                                                                \
+    "usage:\n"                                                                                               \
+    "  INotifyService [options]\n"                                                                           \
+    "options:\n"                                                                                             \
+    "  -m [mount_path]      Path to folder to be watched\n"                                                  \
+    "  -s [shm_key]         The key to be used to open shared memory\n"                                      \
+    "  -r [read_semaphore]  The name of read semaphore to be used between Swift client and this service\n"   \
+    "  -w [write_semaphore] The name of write semaphore to be used between Swift client and this service\n " \
+    "  -h Display help message\n"
 
 struct option long_options[] = {
     {"mount_path", required_argument, 0, 'm'},

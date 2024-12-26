@@ -58,13 +58,18 @@ class DFSClient: @unchecked Sendable {
         }
 
         let sharedMemoryContent = shmPtr.assumingMemoryBound(to: UInt8.self)
+        let wsemData = Data(bytes: sharedMemoryContent.advanced(by: 255), count: 255)
+        let rsemData = Data(bytes: sharedMemoryContent.advanced(by: 255 * 2), count: 255)
+
+        guard let wsemString = String(data: wsemData, encoding: .utf8)?.trimmingCharacters(in: .controlCharacters) else { print("can't parse wsemString from shared memory"); exit(1) }
+        guard let rsemString = String(data: rsemData, encoding: .utf8)?.trimmingCharacters(in: .controlCharacters) else { print("can't parse rsemString from shared memory"); exit(1) }
         
-        guard let rsem = sem_open("/read_sem", 0) else {
+        guard let rsem = sem_open(wsemString, 0) else {
             perror("Failed to open read semaphore")
             return
         }
 
-        guard let wsem = sem_open("/write_sem", 0) else {
+        guard let wsem = sem_open(rsemString, 0) else {
             perror("Failed to open write semaphore")
             return
         }
