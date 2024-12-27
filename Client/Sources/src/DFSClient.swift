@@ -116,11 +116,12 @@ class DFSClient: @unchecked Sendable {
     private func listenToServerUpdateList() {
         Task.detached {
             WebSocket.connect(to: "ws://localhost:8080/socket", on: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)) { [weak self] ws in
+                guard let self else { print("self is nil in listenToServerUpdate"); return }
                 ws.onText { ws, str in
                     print("in socket")
-                    self?.lock.lock()
-                    self?.handlePubSubFileEvents()
-                    self?.lock.unlock()
+                    self.lock.lock()
+                    defer { self.lock.unlock() }
+                    self.handlePubSubFileEvents()
                 }
             }
         }
@@ -136,9 +137,23 @@ class DFSClient: @unchecked Sendable {
         Task {
             do {
                 let res = try await status.response.get()
+                let curr = getCurrentFilesAtMountDirectory()
                 print(res)
                 let files = res.files
                 let path = "./\(self.mountPath)/"
+                print(res.tombstones)
+                
+                for deleted in res.tombstones {
+                    for toBeDeleted in curr {
+                        if deleted.fileName == toBeDeleted {
+                            let currModTime = UInt64(getFileModificationTime(filePath: path + toBeDeleted)?.timeIntervalSince1970 ?? 0)
+                            if !handleServerDeletion(currModTime, deleted) {
+                                store(toBeDeleted)
+                            }
+                        }
+                    }
+                }
+                
                 for file in files {
                     // check which recent and act accordingly
                     if !FileManager.default.fileExists(atPath: path + file.fileName) {
@@ -148,14 +163,13 @@ class DFSClient: @unchecked Sendable {
                     } else {
                         let currChecksum = getFileCheckSum(file.fileName)
                         let currModTime = UInt64(getFileModificationTime(filePath: path + file.fileName)?.timeIntervalSince1970 ?? 0)
-                        if let toBeDeleted = res.tombstones.first(where: { $0.fileName == file.fileName}) {
-                            if !handleServerDeletion(currModTime, toBeDeleted) {
-                                store(file.fileName)
-                                continue
-                            }
-                        }
                         if currChecksum == file.fileChecksum { continue }
-                        if currModTime > file.mtime { store(file.fileName) }
+                        if currModTime > file.mtime {
+                            let attribtues = try FileManager.default.attributesOfItem(atPath: "/\(mountPath)/\(file.fileName)")
+                            let fileSize = attribtues[.size] as? Int
+                            if fileSize ?? 0 == 0 && currChecksum == file.fileChecksum { continue }
+                            store(file.fileName)
+                        }
                         else { fetch(file.fileName) }
                     }
                 }
@@ -334,5 +348,12 @@ class DFSClient: @unchecked Sendable {
             print("Error getting file attributes: \(error)")
         }
         return nil
+    }
+    
+    func getCurrentFilesAtMountDirectory() -> [String] {
+        var files = [String]()
+        do { files = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)") }
+        catch { print(error.localizedDescription) }
+        return files
     }
 }
