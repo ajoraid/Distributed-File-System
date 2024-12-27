@@ -105,15 +105,14 @@ class DFSServiceNode: DFSServiceProvider {
                                                         deadline)
             if !res {
                 print("file already locked")
-                promise.fail(GRPCStatus(code: .resourceExhausted, message: "File already locked"))
+                return promise.fail(GRPCStatus(code: .resourceExhausted, message: "File already locked"))
             }
-            promise.succeed(EmptyResponse())
         }
+        promise.succeed(EmptyResponse())
         return promise.futureResult
     }
     
     func store(context: GRPC.UnaryResponseCallContext<FileContent>) -> EventLoopFuture<(GRPC.StreamEvent<FileRequest>) -> Void> {
-        var checked = false
         var madeEmpty = false
         var filenametemp: String?
         let handler: (GRPC.StreamEvent<FileRequest>) -> Void = { [weak self] event in
@@ -122,6 +121,7 @@ class DFSServiceNode: DFSServiceProvider {
             case .message(let fileRequest):
                 if let toBeRemovedFromTombstone = tombstones.first(where: {$0.filename == fileRequest.fileName}) {
                     if toBeRemovedFromTombstone.fileDeletionTime > fileRequest.mtime {
+                        Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
                         return context.responsePromise.fail(
                             GRPCStatus(code: .aborted, message: "File was deleted recently")
                         )
@@ -131,18 +131,9 @@ class DFSServiceNode: DFSServiceProvider {
                 let path = "./\(self.mountPath)/\(fileRequest.fileName)"
                 filenametemp = fileRequest.fileName
                 do {
-                    if !checked && FileManager.default.fileExists(atPath: path) && UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0) > fileRequest.mtime {
-                        print("File already exists: \(fileRequest.fileName)")
-                        Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
-                        return context.responsePromise.fail(
-                            GRPCStatus(code: .alreadyExists, message: "File already exists at STORE request")
-                        )
-                        
-                    }
 
                     if !FileManager.default.fileExists(atPath: path) {
                         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
-                        checked = true
                     }
 
                     let fileURL = URL(fileURLWithPath: path)                    
