@@ -1,7 +1,7 @@
 # Distributed-File-System
 # Table of Contents
 
-1. [Diagram](#diagram)  
+1. [High-Level Architecture ](#High-Level-Architecture)  
 2. [About](#about)  
    - [INotifyService](#inotifyservice)  
    - [Client](#client)  
@@ -9,7 +9,7 @@
    - [FSService](#fsservice)  
 3. [Demo](#demo)  
 4. [How to Run](#how-to-run)  
-## Diagram 
+## High-Level Architecture  
 ![DFSLatest](https://github.com/user-attachments/assets/ddec6aff-3c10-4c09-890a-c8fbf35cbd70)
 
 ## About
