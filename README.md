@@ -8,7 +8,8 @@
    - [Server](#server)  
    - [FSService](#fsservice)  
 3. [Demo](#demo)  
-4. [How to Run](#how-to-run)  
+4. [How to Run](#how-to-run)
+5. [Notes](#notes)
 ## High-Level Architecture  
 ![DFSLatest](https://github.com/user-attachments/assets/ddec6aff-3c10-4c09-890a-c8fbf35cbd70)
 
@@ -49,3 +50,49 @@ This service is a real-time socket server that updates all connected clients whe
 ## Demo
 
 ## How to Run
+Run the executables in the following order: FSService > Server > INotifyService > Client. Note, you need to run docker as well. 
+
+### Docker
+```
+docker run --privileged -it --rm -v "$(pwd):/app" my-project-env
+```
+
+### [Optional] tmux installation
+```
+apt-get update && apt-get install -y sudo
+sudo apt install tmux
+```
+
+### FSService
+```
+cd FSService/Sources
+swift run FSService
+```
+
+### Server
+```
+cd Server/Sources
+swift run DFSServer
+```
+
+### InotifyService
+```
+cd InotifyService
+make
+./main -m files -s 1357 -r read -w write
+```
+
+### Client
+1. Single Operation
+```
+cd Client/Sources
+swift run DFSClient [command] therepublic.txt // command is one of [fetch, store, delete]
+```
+2. Continuous Monitoring
+```
+cd Client/Sources
+swift run DFSClient mount [path] // by default, path is /files
+```
+
+## Notes
+- When testing the application with the mount command, use VS Code to write or delete files. I initially tried using Xcode, but it appears that Xcode performs multiple steps behind the scenes when writing to a file. This results in inaccurate or unexpected inotify events. I assume vim or nano to be accurate as well, but I didn't test the application using them yet.
