@@ -1,7 +1,18 @@
 # Distributed-File-System
+# Table of Contents
+
+1. [Diagram](#diagram)  
+2. [About](#about)  
+   - [INotifyService](#inotifyservice)  
+   - [Client](#client)  
+   - [Server](#server)  
+   - [FSService](#fsservice)  
+3. [Demo](#demo)  
+4. [How to Run](#how-to-run)  
 ## Diagram 
 ![DFSLatest](https://github.com/user-attachments/assets/ddec6aff-3c10-4c09-890a-c8fbf35cbd70)
 
+## About
 A Distributed File System made in Swift, C, and gRPC with eventual consistency model. The main rule of this system is that the file with the latest modification time wins. The project consist of different services which are explained below
 - INotifyService
 - Client
@@ -34,3 +45,7 @@ The server the client connects to. It serves as the source of truth, and all of 
 
 ### FSService
 This service is a real-time socket server that updates all connected clients when server has an updated item. When the client runs the mount mode, it will connect to the socket service and wait for any update on another thread. When the server recieves an update (store or delete) it will send a POST request to this server in which it will then notify all connected clients that it's time to fetch from the server.
+
+## Demo
+
+## How to Run
