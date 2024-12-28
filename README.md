@@ -50,6 +50,15 @@ This service is a real-time socket server that updates all connected clients whe
 
 ## Demo
 
+### Continous Monitoring
+Using inotify, shared memory, client/server and socket service. The top left corner is the client, while the bottom left is the server.
+
+https://github.com/user-attachments/assets/a6e3a8ce-8224-442a-a0d0-46184f09f141
+
+
+### Continous Monitoring 
+
+
 ## How to Run
 Run the executables in the following order: FSService > Server > INotifyService > Client. Note, you need to run docker as well. 
 
