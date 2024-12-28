@@ -55,8 +55,11 @@ Using inotify, shared memory, client/server and socket service. The top left cor
 
 https://github.com/user-attachments/assets/a6e3a8ce-8224-442a-a0d0-46184f09f141
 
+### One Client Operation. Fetching File from Server
 
-### Continous Monitoring 
+https://github.com/user-attachments/assets/a435cb6d-90fd-4475-b515-281d38a199bd
+
+
 
 
 ## How to Run
