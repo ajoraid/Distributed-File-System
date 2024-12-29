@@ -118,7 +118,6 @@ class DFSClient: @unchecked Sendable {
             WebSocket.connect(to: "ws://localhost:8080/socket", on: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)) { [weak self] ws in
                 guard let self else { print("self is nil in listenToServerUpdate"); return }
                 ws.onText { ws, str in
-                    print("in socket")
                     self.lock.lock()
                     defer { self.lock.unlock() }
                     self.handlePubSubFileEvents()
@@ -137,18 +136,15 @@ class DFSClient: @unchecked Sendable {
         Task {
             do {
                 let res = try await status.response.get()
-                let curr = getCurrentFilesAtMountDirectory()
-                print(res)
+                let currDirMap = getCurrentFilesAtMountDirectory()
                 let files = res.files
                 let path = "./\(self.mountPath)/"
-                print(res.tombstones)
                 
                 for deleted in res.tombstones {
-                    for toBeDeleted in curr {
-                        if deleted.fileName == toBeDeleted {
-                            let currModTime = UInt64(getFileModificationTime(filePath: path + toBeDeleted)?.timeIntervalSince1970 ?? 0)
-                            if !handleServerDeletion(currModTime, deleted) {
-                                store(toBeDeleted)
+                    if let currModtime = currDirMap[deleted.fileName] {
+                        if !handleServerDeletion(currModtime, deleted) {
+                            if !handleServerDeletion(currModtime, deleted) {
+                                store(deleted.fileName)
                             }
                         }
                     }
@@ -352,10 +348,13 @@ class DFSClient: @unchecked Sendable {
         return nil
     }
     
-    func getCurrentFilesAtMountDirectory() -> [String] {
-        var files = [String]()
-        do { files = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)") }
-        catch { print(error.localizedDescription) }
-        return files
+    func getCurrentFilesAtMountDirectory() -> [String: UInt64] {
+        let baseDirPath =  "./\(mountPath)"
+        var filesMap = [String: UInt64]()
+        do {
+            let files = try FileManager.default.contentsOfDirectory(atPath: baseDirPath)
+            filesMap = files.reduce(into: [:], {$0[$1, default: 0] = UInt64(getFileModificationTime(filePath: baseDirPath + "/\($0)")?.timeIntervalSince1970 ?? 0)})
+        } catch { print(error.localizedDescription) }
+        return filesMap
     }
 }
