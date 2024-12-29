@@ -7,7 +7,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
         .package(url: "https://github.com/apple/example-package-figlet", branch: "main"),
-        .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.0.0"),
+        .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.24.0"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.8.3"),
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
 
