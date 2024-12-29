@@ -143,9 +143,7 @@ class DFSClient: @unchecked Sendable {
                 for deleted in res.tombstones {
                     if let currModtime = currDirMap[deleted.fileName] {
                         if !handleServerDeletion(currModtime, deleted) {
-                            if !handleServerDeletion(currModtime, deleted) {
-                                store(deleted.fileName)
-                            }
+                            store(deleted.fileName)
                         }
                     }
                 }
