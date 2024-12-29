@@ -11,7 +11,6 @@ let package = Package(
         .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.0.0"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.8.3"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
-        .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "6.0.0")),
     ],
     targets: [
         .executableTarget(name: "DFSServer", dependencies: [
@@ -20,7 +19,6 @@ let package = Package(
             .product(name: "GRPC", package: "grpc-swift"),
             .product(name: "CryptoSwift", package: "CryptoSwift"),
             .product(name: "NIOCore", package: "swift-nio"),
-            .product(name: "RxCocoa", package: "RxSwift"),
         ], path: "Sources", resources: [
             .process("proto-src/dfsservice.proto"),
             .process("make_protos.sh")

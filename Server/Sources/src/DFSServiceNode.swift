@@ -19,18 +19,7 @@ class DFSServiceNode: DFSServiceProvider {
     let eventLoopGroup: EventLoopGroup
     let mountPath: String
     let deadline: Int64
-    let pubSubHandler = PublishSubject<String>()
-    let disposeBag = DisposeBag()
-    struct Stone {
-        let filename: String
-        let fileDeletionTime: UInt64
-        
-        init(filename: String) {
-            self.filename = filename
-            self.fileDeletionTime = UInt64(Date().timeIntervalSince1970 * 1000)
-        }
-    }
-    var tombstones = [Stone]()
+    var tombstones = [Stones]()
     
     init(eventLoopGroup: EventLoopGroup, mountPath: String, deadline: Int64, interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
         self.eventLoopGroup = eventLoopGroup
@@ -57,54 +46,41 @@ class DFSServiceNode: DFSServiceProvider {
     }
     
     func pubSubFileEvents(request: EmptyResponse, context: any GRPC.StatusOnlyCallContext) -> NIOCore.EventLoopFuture<FilesList> {
-        print("are we here chat?")
         let promise = context.eventLoop.makePromise(of: FilesList.self)
         var response = FilesList()
-        for tombstone in tombstones {
-            var stone = Stones()
-            stone.fileName = tombstone.filename
-            stone.deletionTime = tombstone.fileDeletionTime
-            response.tombstones.append(stone)
-        }
+        response.tombstones.append(contentsOf: tombstones)
         do {
             let filesList = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)")
-            print(filesList)
             let files = filesList.filter { item in
                 var isDirectory: ObjCBool = false
                 let fullPath = (mountPath as NSString).appendingPathComponent(item)
                 FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory)
                 return !isDirectory.boolValue
             }
-            
-            for file in files {
-                let current = getFileStats(file)
-                response.files.append(current)
-            }
+            response.files.append(contentsOf: files.map { getFileStats($0) })
             promise.succeed(response)
         } catch {
-            print(error)
+            promise.fail(GRPCStatus(code: .internalError, message: "Error getting server files"))
         }
         return promise.futureResult
     }
     
     private func getFileStats(_ filename: String) -> FileRequest {
-        var file = FileRequest()
-        file.fileName = filename
-        file.fileChecksum = getFileCheckSum(filename)
-        file.mtime = UInt64(getFileModificationTime(filePath: "./\(mountPath)/\(filename)")?.timeIntervalSince1970 ?? 0)
-        return file
+        return FileRequest.with {
+            $0.fileName = filename
+            $0.fileChecksum = getFileCheckSum(filename)
+            $0.mtime = UInt64(getFileModificationTime(filePath: "./\(mountPath)/\(filename)")?.timeIntervalSince1970 ?? 0)
+        }
     }
     
     func lock(request: FileRequest,
               context: GRPC.StatusOnlyCallContext) -> EventLoopFuture<EmptyResponse> {
         let promise = context.eventLoop.makePromise(of: EmptyResponse.self)
-        print("lock called with \(request.fileName) id: \(request.userid)")
         Task {
             let res = await WriterLockMap.shared.insert(request.fileName,
                                                         request.userid,
                                                         deadline)
             if !res {
-                print("file already locked")
                 return promise.fail(GRPCStatus(code: .resourceExhausted, message: "File already locked"))
             }
         }
@@ -119,30 +95,30 @@ class DFSServiceNode: DFSServiceProvider {
             guard let self else { return }
             switch event {
             case .message(let fileRequest):
-                if let toBeRemovedFromTombstone = tombstones.first(where: {$0.filename == fileRequest.fileName}) {
-                    if toBeRemovedFromTombstone.fileDeletionTime > fileRequest.mtime {
+                if let toBeRemovedFromTombstone = tombstones.first(where: {$0.fileName == fileRequest.fileName}) {
+                    if toBeRemovedFromTombstone.deletionTime > fileRequest.mtime {
                         Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
                         return context.responsePromise.fail(
                             GRPCStatus(code: .aborted, message: "File was deleted recently")
                         )
                     }
-                    tombstones.removeAll(where: {$0.filename == fileRequest.fileName})
+                    tombstones.removeAll(where: {$0.fileName == fileRequest.fileName})
                 }
                 let path = "./\(self.mountPath)/\(fileRequest.fileName)"
                 filenametemp = fileRequest.fileName
                 do {
-
+                    
                     if !FileManager.default.fileExists(atPath: path) {
                         FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
                     }
-
-                    let fileURL = URL(fileURLWithPath: path)                    
+                    
+                    let fileURL = URL(fileURLWithPath: path)
                     let fileHandle = try FileHandle(forWritingTo: fileURL)
                     if !madeEmpty { fileHandle.truncateFile(atOffset: 0); madeEmpty.toggle() }
                     defer { try? fileHandle.close() }
                     fileHandle.seekToEndOfFile()
                     fileHandle.write(fileRequest.fileContent)
-
+                    
                 } catch {
                     print("Error writing file: \(error)")
                     Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
@@ -150,7 +126,7 @@ class DFSServiceNode: DFSServiceProvider {
                         GRPCStatus(code: .internalError, message: "Error writing file: \(error.localizedDescription)")
                     )
                 }
-
+                
             case .end:
                 print("Stream ended")
                 if let filenametemp { Task { await WriterLockMap.shared.remove(filenametemp) } }
@@ -160,7 +136,7 @@ class DFSServiceNode: DFSServiceProvider {
         notifyFileSocketServer()
         return context.eventLoop.makeSucceededFuture(handler)
     }
-
+    
     
     func fetch(request: FileRequest,
                context: GRPC.StreamingResponseCallContext<FileContent>) -> NIOCore.EventLoopFuture<GRPC.GRPCStatus> {
@@ -197,13 +173,15 @@ class DFSServiceNode: DFSServiceProvider {
     func delete(request: FileRequest,
                 context: any GRPC.StatusOnlyCallContext) -> NIOCore.EventLoopFuture<EmptyResponse> {
         let path = "./\(self.mountPath)/\(request.fileName)"
-        print("delete got called with \(request.fileName)")
         
         if !FileManager.default.fileExists(atPath: path) {
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .notFound))
         }
         do {
-            tombstones.append(.init(filename: request.fileName))
+            tombstones.append(.with{
+                $0.fileName = request.fileName
+                $0.deletionTime = UInt64(Date().timeIntervalSince1970 * 1000)
+            })
             try FileManager.default.removeItem(atPath: path)
             notifyFileSocketServer()
         } catch {
