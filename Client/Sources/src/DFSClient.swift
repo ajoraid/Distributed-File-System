@@ -273,8 +273,10 @@ class DFSClient: @unchecked Sendable {
         var request = FileRequest()
         var madeEmpty = false
         request.fileName = filename
-        request.fileChecksum = getFileCheckSum(filename)
-        request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+        if FileManager.default.fileExists(atPath: path) {
+            request.fileChecksum = getFileCheckSum(filename)
+            request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+        }
         let call = client.fetch(request) { response in
             print("Received chunk: \(response.fileContent) bytes")
             
