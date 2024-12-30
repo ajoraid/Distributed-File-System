@@ -64,6 +64,8 @@ struct FileRequest: @unchecked Sendable {
 
   var userid: String = String()
 
+  var ctime: UInt64 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -179,6 +181,7 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     3: .same(proto: "fileChecksum"),
     4: .same(proto: "mtime"),
     5: .same(proto: "userid"),
+    6: .same(proto: "ctime"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -192,6 +195,7 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.fileChecksum) }()
       case 4: try { try decoder.decodeSingularUInt64Field(value: &self.mtime) }()
       case 5: try { try decoder.decodeSingularStringField(value: &self.userid) }()
+      case 6: try { try decoder.decodeSingularUInt64Field(value: &self.ctime) }()
       default: break
       }
     }
@@ -213,6 +217,9 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if !self.userid.isEmpty {
       try visitor.visitSingularStringField(value: self.userid, fieldNumber: 5)
     }
+    if self.ctime != 0 {
+      try visitor.visitSingularUInt64Field(value: self.ctime, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -222,6 +229,7 @@ extension FileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if lhs.fileChecksum != rhs.fileChecksum {return false}
     if lhs.mtime != rhs.mtime {return false}
     if lhs.userid != rhs.userid {return false}
+    if lhs.ctime != rhs.ctime {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

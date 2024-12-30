@@ -24,6 +24,7 @@ message FileRequest {
     uint32 fileChecksum = 3;
     uint64 mtime = 4;
     string userid = 5;
+    uint64 ctime = 6;
 }
 
 message FileContent {
