@@ -17,9 +17,13 @@ class DFSClient: @unchecked Sendable {
     private let timeout: Int
     private var client: DFSServiceNIOClient?
     private var userID: String
+    private let fileManager = FileManager.default
     private var lock = NSLock()
     
-    init(key: Int, address: String, mountPath: String, timeout: Int) {
+    init(key: Int,
+         address: String,
+         mountPath: String,
+         timeout: Int) {
         self.address = address
         self.mountPath = mountPath
         self.timeout = timeout
@@ -140,7 +144,7 @@ class DFSClient: @unchecked Sendable {
                 let path = "./\(self.mountPath)/"
                 handleDeletion(res.tombstones)
                 for file in files {
-                    if !FileManager.default.fileExists(atPath: path + file.fileName) {
+                    if !fileManager.fileExists(atPath: path + file.fileName) {
                         if !res.tombstones.contains(where: { $0.fileName == file.fileName }) {
                             fetch(file.fileName)
                         }
@@ -149,7 +153,7 @@ class DFSClient: @unchecked Sendable {
                         let currModTime = getFileModificationAndCreationTime(filePath: path + file.fileName).0
                         if currChecksum == file.fileChecksum { continue }
                         if currModTime > file.mtime {
-                            let attribtues = try FileManager.default.attributesOfItem(atPath: "/\(mountPath)/\(file.fileName)")
+                            let attribtues = try fileManager.attributesOfItem(atPath: "/\(mountPath)/\(file.fileName)")
                             let fileSize = attribtues[.size] as? Int
                             if fileSize ?? 0 == 0 && currChecksum == file.fileChecksum { continue }
                             store(file.fileName)
@@ -178,7 +182,7 @@ class DFSClient: @unchecked Sendable {
     private func handleServerDeletion(_ currentModificationAndCreationTime: (UInt64, UInt64), _ stale: Stones) -> Bool {
         let (mtime, ctime) = currentModificationAndCreationTime
         if stale.deletionTime > mtime && stale.deletionTime > ctime {
-            do { try FileManager.default.removeItem(atPath: "./\(self.mountPath)/\(stale.fileName)") }
+            do { try fileManager.removeItem(atPath: "./\(self.mountPath)/\(stale.fileName)") }
             catch { print("error deleting at handleserverdeletion: \(error.localizedDescription)") }
             return true
         }
@@ -272,18 +276,19 @@ class DFSClient: @unchecked Sendable {
         var madeEmpty = false
         let (mtime, ctime) = getFileModificationAndCreationTime(filePath: path)
         request.fileName = filename
-        if FileManager.default.fileExists(atPath: path) {
+        if fileManager.fileExists(atPath: path) {
             request.fileChecksum = getFileCheckSum(filename)
             request.mtime = mtime
             request.ctime = ctime
         }
-        let call = client.fetch(request) { response in
+        let call = client.fetch(request) { [weak self] response in
+            guard let self else { print("self is nil in fetch"); return }
             print("Received chunk: \(response.fileContent) bytes")
             
             let fileURL = URL(fileURLWithPath: path)
             
-            if !FileManager.default.fileExists(atPath: path) {
-                FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
+            if !self.fileManager.fileExists(atPath: path) {
+                self.fileManager.createFile(atPath: path, contents: nil, attributes: nil)
             }
             
             do {
@@ -323,7 +328,7 @@ class DFSClient: @unchecked Sendable {
         let path = "./\(mountPath)/\(filename)"
         let fileURL = URL(fileURLWithPath: path)
         
-        if !FileManager.default.fileExists(atPath: path) {
+        if !fileManager.fileExists(atPath: path) {
             print("File does not exist. Checksum failed")
             return 0
         }
@@ -339,7 +344,6 @@ class DFSClient: @unchecked Sendable {
     }
     
     func getFileModificationAndCreationTime(filePath: String) -> (UInt64, UInt64) {
-        let fileManager = FileManager.default
         do {
             let attributes = try fileManager.attributesOfItem(atPath: filePath)
             let modificationTime = attributes[.modificationDate] as? Date
@@ -355,7 +359,7 @@ class DFSClient: @unchecked Sendable {
         let baseDirPath =  "./\(mountPath)"
         var filesMap = [String: (UInt64, UInt64)]()
         do {
-            let files = try FileManager.default.contentsOfDirectory(atPath: baseDirPath)
+            let files = try fileManager.contentsOfDirectory(atPath: baseDirPath)
             filesMap = files.reduce(into: [:]) { (result, fileName) in
                 let filePath = baseDirPath + "/\(fileName)"
                 let (mtime, ctime) = getFileModificationAndCreationTime(filePath: filePath)
