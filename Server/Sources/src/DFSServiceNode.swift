@@ -19,7 +19,7 @@ class DFSServiceNode: DFSServiceProvider {
     let eventLoopGroup: EventLoopGroup
     let mountPath: String
     let deadline: Int64
-    var tombstones = [Stones]()
+    var tombstones = Set<Stones>()
     
     init(eventLoopGroup: EventLoopGroup, mountPath: String, deadline: Int64, interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
         self.eventLoopGroup = eventLoopGroup
@@ -96,13 +96,13 @@ class DFSServiceNode: DFSServiceProvider {
             switch event {
             case .message(let fileRequest):
                 if let toBeRemovedFromTombstone = tombstones.first(where: {$0.fileName == fileRequest.fileName}) {
-                    if toBeRemovedFromTombstone.deletionTime > fileRequest.mtime {
+                    if toBeRemovedFromTombstone.deletionTime > fileRequest.mtime && toBeRemovedFromTombstone.deletionTime > fileRequest.ctime {
                         Task { await WriterLockMap.shared.remove(fileRequest.fileName) }
                         return context.responsePromise.fail(
                             GRPCStatus(code: .aborted, message: "File was deleted recently")
                         )
                     }
-                    tombstones.removeAll(where: {$0.fileName == fileRequest.fileName})
+                    if let idx = tombstones.firstIndex(where: {$0.fileName == fileRequest.fileName}) {tombstones.remove(at: idx)}
                 }
                 let path = "./\(self.mountPath)/\(fileRequest.fileName)"
                 filenametemp = fileRequest.fileName
@@ -118,6 +118,7 @@ class DFSServiceNode: DFSServiceProvider {
                     defer { try? fileHandle.close() }
                     fileHandle.seekToEndOfFile()
                     fileHandle.write(fileRequest.fileContent)
+                    notifyFileSocketServer()
                     
                 } catch {
                     print("Error writing file: \(error)")
@@ -133,7 +134,6 @@ class DFSServiceNode: DFSServiceProvider {
                 context.responsePromise.succeed(FileContent())
             }
         }
-        notifyFileSocketServer()
         return context.eventLoop.makeSucceededFuture(handler)
     }
     
@@ -175,16 +175,19 @@ class DFSServiceNode: DFSServiceProvider {
         let path = "./\(self.mountPath)/\(request.fileName)"
         
         if !FileManager.default.fileExists(atPath: path) {
+            Task { await WriterLockMap.shared.remove(request.fileName) }
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .notFound))
         }
         do {
-            tombstones.append(.with{
+            tombstones.insert(.with{
                 $0.fileName = request.fileName
-                $0.deletionTime = UInt64(Date().timeIntervalSince1970 * 1000)
+                $0.deletionTime = UInt64(Date().timeIntervalSince1970)
             })
             try FileManager.default.removeItem(atPath: path)
+            Task { await WriterLockMap.shared.remove(request.fileName) }
             notifyFileSocketServer()
         } catch {
+            Task { await WriterLockMap.shared.remove(request.fileName) }
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .internalError))
         }
         let response = EmptyResponse()
