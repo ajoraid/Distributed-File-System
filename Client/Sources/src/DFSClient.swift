@@ -118,14 +118,12 @@ class DFSClient: @unchecked Sendable {
     }
     
     private func listenToServerUpdateList() {
-        Task.detached {
-            WebSocket.connect(to: "ws://localhost:8080/socket", on: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)) { [weak self] ws in
-                guard let self else { print("self is nil in listenToServerUpdate"); return }
-                ws.onText { ws, str in
-                    self.lock.lock()
-                    defer { self.lock.unlock() }
-                    self.handlePubSubFileEvents()
-                }
+        WebSocket.connect(to: "ws://localhost:8080/socket", on: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)) { [weak self] ws in
+            guard let self else { print("self is nil in listenToServerUpdate"); return }
+            ws.onText { ws, str in
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                self.handlePubSubFileEvents()
             }
         }
     }
