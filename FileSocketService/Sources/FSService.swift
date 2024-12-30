@@ -27,11 +27,12 @@ struct FSService {
             ws.onClose.whenComplete { _ in
                 lock.lock()
                 activeWebSockets.removeValue(forKey: clientID)
+                print("Client closed: \(clientID)")
                 lock.unlock()
             }
-            print("Client closed: \(clientID)")
+            
         }
-        
+
         application.post("notify") { req -> HTTPStatus in
             lock.lock()
             for (id, ws) in activeWebSockets {
