@@ -1,5 +1,5 @@
 # Distributed-File-System
-A Distributed File System made in Swift, C, and gRPC with eventual consistency model. The main rule of this system is that the file with the latest modification time wins. 
+A **really** basic Distributed File System made in Swift, C, and gRPC with eventual consistency model. The main rule of this system is that the file with the latest modification time wins. 
 # Table of Contents
 
 1. [High-Level Architecture ](#High-Level-Architecture)  
