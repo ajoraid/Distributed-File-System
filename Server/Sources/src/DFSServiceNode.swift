@@ -16,12 +16,16 @@ import CryptoSwift
 import RxSwift
 
 class DFSServiceNode: DFSServiceProvider {
-    let eventLoopGroup: EventLoopGroup
-    let mountPath: String
-    let deadline: Int64
-    var tombstones = Set<Stones>()
+    private let eventLoopGroup: EventLoopGroup
+    private let mountPath: String
+    private let deadline: Int64
+    private let fileManager = FileManager.default
+    private var tombstones = Set<Stones>()
     
-    init(eventLoopGroup: EventLoopGroup, mountPath: String, deadline: Int64, interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
+    init(eventLoopGroup: EventLoopGroup,
+         mountPath: String,
+         deadline: Int64,
+         interceptors: (any DFSServiceServerInterceptorFactoryProtocol)? = nil) {
         self.eventLoopGroup = eventLoopGroup
         self.mountPath = mountPath
         self.deadline = deadline
@@ -50,11 +54,11 @@ class DFSServiceNode: DFSServiceProvider {
         var response = FilesList()
         response.tombstones.append(contentsOf: tombstones)
         do {
-            let filesList = try FileManager.default.contentsOfDirectory(atPath: "./\(mountPath)")
+            let filesList = try fileManager.contentsOfDirectory(atPath: "./\(mountPath)")
             let files = filesList.filter { item in
                 var isDirectory: ObjCBool = false
                 let fullPath = (mountPath as NSString).appendingPathComponent(item)
-                FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory)
+                fileManager.fileExists(atPath: fullPath, isDirectory: &isDirectory)
                 return !isDirectory.boolValue
             }
             response.files.append(contentsOf: files.map { getFileStats($0) })
@@ -108,8 +112,8 @@ class DFSServiceNode: DFSServiceProvider {
                 filenametemp = fileRequest.fileName
                 do {
                     
-                    if !FileManager.default.fileExists(atPath: path) {
-                        FileManager.default.createFile(atPath: path, contents: nil, attributes: nil)
+                    if !fileManager.fileExists(atPath: path) {
+                        fileManager.createFile(atPath: path, contents: nil, attributes: nil)
                     }
                     
                     let fileURL = URL(fileURLWithPath: path)
@@ -142,7 +146,7 @@ class DFSServiceNode: DFSServiceProvider {
                context: GRPC.StreamingResponseCallContext<FileContent>) -> NIOCore.EventLoopFuture<GRPC.GRPCStatus> {
         let promise = context.eventLoop.makePromise(of: GRPCStatus.self)
         let path = "./\(self.mountPath)/\(request.fileName)"
-        if !FileManager.default.fileExists(atPath: path) {
+        if !fileManager.fileExists(atPath: path) {
             promise.fail(GRPCStatus(code: .notFound, message: "File was not found on server"))
             return promise.futureResult
         }
@@ -174,7 +178,7 @@ class DFSServiceNode: DFSServiceProvider {
                 context: any GRPC.StatusOnlyCallContext) -> NIOCore.EventLoopFuture<EmptyResponse> {
         let path = "./\(self.mountPath)/\(request.fileName)"
         
-        if !FileManager.default.fileExists(atPath: path) {
+        if !fileManager.fileExists(atPath: path) {
             Task { await WriterLockMap.shared.remove(request.fileName) }
             return context.eventLoop.makeFailedFuture(GRPCStatus(code: .notFound))
         }
@@ -183,7 +187,7 @@ class DFSServiceNode: DFSServiceProvider {
                 $0.fileName = request.fileName
                 $0.deletionTime = UInt64(Date().timeIntervalSince1970)
             })
-            try FileManager.default.removeItem(atPath: path)
+            try fileManager.removeItem(atPath: path)
             Task { await WriterLockMap.shared.remove(request.fileName) }
             notifyFileSocketServer()
         } catch {
@@ -198,7 +202,7 @@ class DFSServiceNode: DFSServiceProvider {
         let path = "./\(mountPath)/\(filename)"
         let fileURL = URL(fileURLWithPath: path)
         
-        if !FileManager.default.fileExists(atPath: path) {
+        if !fileManager.fileExists(atPath: path) {
             print("File does not exist. Checksum failed")
             return 0
         }
@@ -215,7 +219,6 @@ class DFSServiceNode: DFSServiceProvider {
     }
     
     func getFileModificationTime(filePath: String) -> UInt64 {
-        let fileManager = FileManager.default
         do {
             let attributes = try fileManager.attributesOfItem(atPath: filePath)
             if let modificationDate = attributes[.modificationDate] as? Date {
