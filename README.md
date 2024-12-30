@@ -85,6 +85,7 @@ swift run FSService
 ### Server
 ```
 cd Server/Sources
+./make_protos.sh
 swift run DFSServer
 ```
 
@@ -99,6 +100,7 @@ make
 1. Single Operation
 ```
 cd Client/Sources
+./make_protos.sh
 swift run DFSClient [command] therepublic.txt // command is one of [fetch, store, delete]
 ```
 2. Continuous Monitoring
