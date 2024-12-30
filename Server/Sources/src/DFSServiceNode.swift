@@ -69,7 +69,7 @@ class DFSServiceNode: DFSServiceProvider {
         return FileRequest.with {
             $0.fileName = filename
             $0.fileChecksum = getFileCheckSum(filename)
-            $0.mtime = UInt64(getFileModificationTime(filePath: "./\(mountPath)/\(filename)")?.timeIntervalSince1970 ?? 0)
+            $0.mtime = getFileModificationTime(filePath: "./\(mountPath)/\(filename)")
         }
     }
     
@@ -147,7 +147,7 @@ class DFSServiceNode: DFSServiceProvider {
             return promise.futureResult
         }
         
-        if request.mtime > UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0) {
+        if request.mtime > getFileModificationTime(filePath: path) {
             promise.fail(GRPCStatus(code: .cancelled, message: "File is old"))
             return promise.futureResult
         }
@@ -214,16 +214,16 @@ class DFSServiceNode: DFSServiceProvider {
         return 0
     }
     
-    func getFileModificationTime(filePath: String) -> Date? {
+    func getFileModificationTime(filePath: String) -> UInt64 {
         let fileManager = FileManager.default
         do {
             let attributes = try fileManager.attributesOfItem(atPath: filePath)
             if let modificationDate = attributes[.modificationDate] as? Date {
-                return modificationDate
+                return UInt64(modificationDate.timeIntervalSince1970)
             }
         } catch {
             print("Error getting file attributes: \(error)")
         }
-        return nil
+        return 0
     }
 }
