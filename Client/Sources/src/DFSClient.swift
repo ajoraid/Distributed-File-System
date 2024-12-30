@@ -136,27 +136,17 @@ class DFSClient: @unchecked Sendable {
         Task {
             do {
                 let res = try await status.response.get()
-                let currDirMap = getCurrentFilesAtMountDirectory()
                 let files = res.files
                 let path = "./\(self.mountPath)/"
-                
-                for deleted in res.tombstones {
-                    if let currModtime = currDirMap[deleted.fileName] {
-                        if !handleServerDeletion(currModtime, deleted) {
-                            store(deleted.fileName)
-                        }
-                    }
-                }
-                
+                handleDeletion(res.tombstones)
                 for file in files {
-                    // check which recent and act accordingly
                     if !FileManager.default.fileExists(atPath: path + file.fileName) {
                         if !res.tombstones.contains(where: { $0.fileName == file.fileName }) {
                             fetch(file.fileName)
                         }
                     } else {
                         let currChecksum = getFileCheckSum(file.fileName)
-                        let currModTime = UInt64(getFileModificationTime(filePath: path + file.fileName)?.timeIntervalSince1970 ?? 0)
+                        let currModTime = getFileModificationAndCreationTime(filePath: path + file.fileName).0
                         if currChecksum == file.fileChecksum { continue }
                         if currModTime > file.mtime {
                             let attribtues = try FileManager.default.attributesOfItem(atPath: "/\(mountPath)/\(file.fileName)")
@@ -167,15 +157,27 @@ class DFSClient: @unchecked Sendable {
                         else { fetch(file.fileName) }
                     }
                 }
-                print("Response received successfully.")
             } catch {
                 print("Error while waiting for the response: \(error)")
             }
         }
     }
     
-    private func handleServerDeletion(_ currModTime: UInt64, _ stale: Stones) -> Bool {
-        if stale.deletionTime > currModTime {
+    private func handleDeletion(_ stones: [Stones]) {
+        let currDirMap = getCurrentFilesAtMountDirectory()
+        let path = "./\(self.mountPath)/"
+        for deleted in stones {
+            if let currentModificationAndCreationTime = currDirMap[deleted.fileName] {
+                if !handleServerDeletion(currentModificationAndCreationTime, deleted) {
+                    store(deleted.fileName)
+                }
+            }
+        }
+    }
+    
+    private func handleServerDeletion(_ currentModificationAndCreationTime: (UInt64, UInt64), _ stale: Stones) -> Bool {
+        let (mtime, ctime) = currentModificationAndCreationTime
+        if stale.deletionTime > mtime && stale.deletionTime > ctime {
             do { try FileManager.default.removeItem(atPath: "./\(self.mountPath)/\(stale.fileName)") }
             catch { print("error deleting at handleserverdeletion: \(error.localizedDescription)") }
             return true
@@ -216,9 +218,11 @@ class DFSClient: @unchecked Sendable {
             return
         }
         let path = "./\(mountPath)/\(filename)"
+        let (mtime, ctime) = getFileModificationAndCreationTime(filePath: path)
         var request = FileRequest()
         request.fileName = filename
-        request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+        request.mtime = mtime
+        request.ctime = ctime
         request.fileChecksum = getFileCheckSum(filename)
         let chunkSize = 1024
         let fileURL = URL(fileURLWithPath: path)
@@ -266,10 +270,12 @@ class DFSClient: @unchecked Sendable {
         let path = "./\(self.mountPath)/\(filename)"
         var request = FileRequest()
         var madeEmpty = false
+        let (mtime, ctime) = getFileModificationAndCreationTime(filePath: path)
         request.fileName = filename
         if FileManager.default.fileExists(atPath: path) {
             request.fileChecksum = getFileCheckSum(filename)
-            request.mtime = UInt64(getFileModificationTime(filePath: path)?.timeIntervalSince1970 ?? 0)
+            request.mtime = mtime
+            request.ctime = ctime
         }
         let call = client.fetch(request) { response in
             print("Received chunk: \(response.fileContent) bytes")
@@ -325,7 +331,6 @@ class DFSClient: @unchecked Sendable {
         do {
             let data = try Data(contentsOf: fileURL)
             let checksum = Checksum.crc32(Array(data))
-            print(checksum)
             return checksum
         } catch {
             print(error.localizedDescription)
@@ -333,25 +338,29 @@ class DFSClient: @unchecked Sendable {
         return 0
     }
     
-    func getFileModificationTime(filePath: String) -> Date? {
+    func getFileModificationAndCreationTime(filePath: String) -> (UInt64, UInt64) {
         let fileManager = FileManager.default
         do {
             let attributes = try fileManager.attributesOfItem(atPath: filePath)
-            if let modificationDate = attributes[.modificationDate] as? Date {
-                return modificationDate
-            }
+            let modificationTime = attributes[.modificationDate] as? Date
+            let creationTime = attributes[.creationDate] as? Date
+            return (UInt64(modificationTime?.timeIntervalSince1970 ?? 0), UInt64(creationTime?.timeIntervalSince1970 ?? 0))
         } catch {
             print("Error getting file attributes: \(error)")
         }
-        return nil
+        return (0,0)
     }
     
-    func getCurrentFilesAtMountDirectory() -> [String: UInt64] {
+    func getCurrentFilesAtMountDirectory() -> [String: (UInt64, UInt64)] {
         let baseDirPath =  "./\(mountPath)"
-        var filesMap = [String: UInt64]()
+        var filesMap = [String: (UInt64, UInt64)]()
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: baseDirPath)
-            filesMap = files.reduce(into: [:], {$0[$1, default: 0] = UInt64(getFileModificationTime(filePath: baseDirPath + "/\($0)")?.timeIntervalSince1970 ?? 0)})
+            filesMap = files.reduce(into: [:]) { (result, fileName) in
+                let filePath = baseDirPath + "/\(fileName)"
+                let (mtime, ctime) = getFileModificationAndCreationTime(filePath: filePath)
+                result[fileName] = (mtime, ctime)
+            }
         } catch { print(error.localizedDescription) }
         return filesMap
     }
