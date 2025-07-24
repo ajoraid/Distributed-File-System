@@ -7,25 +7,14 @@
 
 import Foundation
 extension DFSClientCLI {
-    enum Command {
+    enum Command: String {
         case fetch
         case store
         case delete
         case mount
-        
+
         static func fromString(_ string: String) -> Command? {
-            switch string {
-            case "fetch":
-                return .fetch
-            case "store":
-                return .store
-            case "delete":
-                return .delete
-            case "mount":
-                return .mount
-            default:
-                return nil
-            }
+            return Command(rawValue: string.lowercased())
         }
     }
 }
